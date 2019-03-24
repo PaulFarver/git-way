@@ -4,29 +4,37 @@
 }
 
 .commitnode {
-    fill: none;
     stroke-width: 3px;
 }
 
 .importantcommit {
-    fill: white;
-    stroke: black;
+    stroke: white;
 }
 
 .commitline{
     stroke-width: 3px;
-    stroke: black
+    stroke: white;
 }
 
+/* .squashlabel::before{
+    background: black;
+    width: 10px;
+    height: 10px;
+} */
 .squashlabel{
     text-anchor: middle;
-    fill: white;
 }
 
 .squashlabeltext{
+    fill: white;
     text-anchor: middle;
     font-family: "Lucida Console", Monaco, monospace;
 }
 
 .taglabel {
+
+}
+
+.branchlabel {
+    fill: white;
 }

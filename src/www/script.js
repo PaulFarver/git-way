@@ -18,30 +18,38 @@ client.get("graph.json", function(response) {
   render(svg, JSON.parse(response));
 });
 
-function getPrecedence(branch){
-  if (branch == "origin/master"){
-    return 0
-  }
-  if (branch == "origin/develop"){
-    return 2
-  }
-  if (branch.startsWith("origin/hotfix/")){
-    return 1
-  }
-  if (branch.startsWith("origin/feature/")){
-    return 3
-  }
-  return 4
+colormap = {
+  0: "#3B4968",
+  1: "#9C9451",
+  2: "#4E3C6A",
+  3: "#9C8351",
+  4: "#000000"
 }
 
-branchYs = {
-};
-curry = 80;
+function getPrecedence(branch) {
+  if (branch == "origin/master") {
+    return 0;
+  }
+  if (branch == "origin/develop") {
+    return 2;
+  }
+  if (branch.startsWith("origin/hotfix/")) {
+    return 1;
+  }
+  if (branch.startsWith("origin/feature/")) {
+    return 3;
+  }
+  return 4;
+}
+
+branchYs = {};
+curry = 50;
+diff = 80
 
 function getY(branch) {
   if (branchYs[branch] == null) {
-    curry += 40;
     branchYs[branch] = curry;
+    curry += diff;
   }
   return branchYs[branch];
 }
@@ -50,7 +58,7 @@ function render(svg, graph) {
   count = {};
   graph
     .sort((g1, g2) => {
-      return g1.timestamp - g2.timestamp
+      return g1.timestamp - g2.timestamp;
     })
     .sort((g1, g2) => {
       return getPrecedence(g1.branch) - getPrecedence(g2.branch);
@@ -59,9 +67,9 @@ function render(svg, graph) {
       count[element.branch] = 0;
       getY(element.branch);
     });
-  var w = 1900;
+  var w = 1800;
   var h = 600;
-  var padding = 40;
+  var padding = 60;
   svg.attr("width", w).attr("height", h);
   svg.attr(
     "viewBox",
@@ -133,6 +141,17 @@ function render(svg, graph) {
     });
   });
 
+  for (var key in branchYs) {
+    key + branchYs[key];
+    let c;
+    svg.append("rect")
+      .attr("y", branchYs[key]-diff/2)
+      .attr("x", -125)
+      .attr("height", diff)
+      .attr("width", w+250)
+      .attr("fill", colormap[getPrecedence(key)])
+  }
+
   s = svg
     .selectAll(".line")
     .data(links)
@@ -149,7 +168,8 @@ function render(svg, graph) {
     .attr("cx", d => (d.source.x + d.target.x) / 2)
     .attr("cy", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
-    .attr("r", 20);
+    .attr("r", 20)
+    .attr("fill", d => colormap[getPrecedence(d.source.branch)])
   s.filter(d => d.count > 0)
     .append("text")
     .attr("x", d => (d.source.x + d.target.x) / 2)
@@ -173,6 +193,7 @@ function render(svg, graph) {
   cNodes
     .append("svg:circle")
     .attr("r", 5)
+    .attr("fill", d => colormap[getPrecedence(d.branch)])
     .attr("class", d => {
       let c = "commitnode";
       if (d.important) {
@@ -206,8 +227,12 @@ function render(svg, graph) {
     .append("g")
     .attr("x", 15)
     .attr("y", 1)
-    .attr("transform", `translate(15,-10) rotate(-40)`);
+    .attr("transform", `rotate(-60) translate(10,0)`);
 
+  taggs
+    .append("path")
+    .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
+    .attr("fill", "grey");
   taggs
     .append("text")
     .text(d => {
@@ -222,7 +247,10 @@ function render(svg, graph) {
     .attr("font-family", '"Lucida Console", Monaco, monospace')
     .attr("font-size", "15px")
     .attr("class", "taglabel")
-    .attr("text-anchor", "start");
+    .attr("text-anchor", "start")
+    .attr("alignment-baseline", "middle")
+    .attr("transform", "translate(15,1)")
+    .attr("fill", "white");
 
   branchgs = cNodes
     .filter(d => {
@@ -256,5 +284,4 @@ function render(svg, graph) {
     .attr("font-size", "15px")
     .attr("class", "branchlabel")
     .attr("text-anchor", "start");
-
 }
