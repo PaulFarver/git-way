@@ -14,12 +14,19 @@ import (
 )
 
 type GraphNode struct {
-	Hash      string   `json:"id"`
-	Title     string   `json:"title"`
-	Branch    string   `json:"branch"`
-	Amount    int      `json:"amount"`
-	Parents   []string `json:"parentIds"`
-	Timestamp int64    `json:"timestamp"`
+	Hash       string      `json:"id"`
+	Title      string      `json:"title"`
+	Branch     string      `json:"branch"`
+	Amount     int         `json:"amount"`
+	Parents    []string    `json:"parentIds"`
+	Timestamp  int64       `json:"timestamp"`
+	Important  bool        `json:"important"`
+	References []CommitRef `json:"references"`
+}
+
+type CommitRef struct {
+	Ref  string `json:"ref"`
+	Type string `json:"type"`
 }
 
 func check(err error) {
@@ -44,6 +51,8 @@ func ensureRepo() *git.Repository {
 	if err != git.NoErrAlreadyUpToDate {
 		check(err)
 	}
+	err = repo.Prune(git.PruneOptions{})
+	check(err)
 	return repo
 }
 
@@ -62,37 +71,55 @@ func getCheckTime(currTime time.Time, duration string) time.Time {
 func main() {
 	fmt.Println("Checking out...")
 	repo := ensureRepo()
-	checktime := getCheckTime(time.Now(), "744h")
+	checktime := getCheckTime(time.Now(), "1000h")
 
+	// Discover branches
 	branchKeys := [][]string{[]string{}, []string{}, []string{}, []string{}, []string{}, []string{}}
 	branches := make(map[string]plumbing.Hash)
-	refIter, err := repo.References()
+	references := make(map[plumbing.ReferenceName]plumbing.Hash)
 	fmt.Println("Discovering remote branches...")
-
+	refIter, err := repo.References()
 	check(err)
 	refIter.ForEach(func(r *plumbing.Reference) error {
 		if r.Name().IsRemote() {
 			branches[r.Name().Short()] = r.Hash()
 			branchKeys[AssignPriority(r.Name())] = append(branchKeys[AssignPriority(r.Name())], r.Name().Short())
 		}
+		if r.Name().IsRemote() || r.Name().IsTag() {
+			references[r.Name()] = r.Hash()
+		}
 		return nil
 	})
+
 	// Collect commits
 	graphs := []GraphNode{}
-	branchcommits := []GraphNode{}
-	excludes := make(map[plumbing.Hash]bool)
-
+	commits := make(map[plumbing.Hash]GraphNode)
 	for _, pBranches := range branchKeys {
 		for _, name := range pBranches {
 			fmt.Println("Walking branch: " + name)
 			hash := branches[name]
 			c, _ := repo.CommitObject(hash)
-			branchcommits, excludes, _ = WalkCommit(c, excludes, checktime, GraphNode{Branch: name})
-			fmt.Printf("found %v commits\n", len(branchcommits))
-			graphs = append(graphs, branchcommits...)
+			commits, _ = WalkCommit(c, commits, checktime, GraphNode{Branch: name, References: []CommitRef{}})
+			fmt.Printf("found %v commits\n", len(commits))
 		}
 	}
 
+	for k, v := range references {
+		if c, ok := commits[v]; ok {
+			fmt.Println("Assigning " + k.Short())
+			t := "branch"
+			c.Important = true
+			if k.IsTag() {
+				t = "tag"
+			}
+			c.References = append(c.References, CommitRef{Type: t, Ref: k.Short()})
+			commits[v] = c
+		}
+	}
+
+	for _, v := range commits {
+		graphs = append(graphs, v)
+	}
 	// graphs = append(graphs, allcommits...)
 
 	// Write to file
@@ -102,21 +129,26 @@ func main() {
 	check(err)
 }
 
-func WalkCommit(commit *object.Commit, excludes map[plumbing.Hash]bool, checktime time.Time, template GraphNode) ([]GraphNode, map[plumbing.Hash]bool, bool) {
+func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, checktime time.Time, template GraphNode) (map[plumbing.Hash]GraphNode, bool) {
 	// Check if commit has been parsed before
 	if commit.Committer.When.Before(checktime) {
-		return nil, excludes, false
+		return commits, false
 	}
-	if excludes[commit.Hash] {
-		return nil, excludes, true
+	if i, ok := commits[commit.Hash]; ok && i.Branch != template.Branch {
+		i.Important = true
+		commits[commit.Hash] = i
+		return commits, true
 	}
-	graphs := []GraphNode{}
+	if _, ok := commits[commit.Hash]; ok {
+		return commits, true
+	}
+	// graphs := []GraphNode{}
 	parentIds := []string{}
 	// Parse parents
 	commit.Parents().ForEach(func(parent *object.Commit) error {
-		parentGraphs, ex, include := WalkCommit(parent, excludes, checktime, template)
-		excludes = ex
-		graphs = append(graphs, parentGraphs...)
+		ex, include := WalkCommit(parent, commits, checktime, template)
+		commits = ex
+		// graphs = append(graphs, parentGraphs...)
 		if include {
 			parentIds = append(parentIds, parent.Hash.String())
 		}
@@ -126,8 +158,8 @@ func WalkCommit(commit *object.Commit, excludes map[plumbing.Hash]bool, checktim
 	g.Hash = commit.Hash.String()
 	g.Parents = parentIds
 	g.Timestamp = commit.Committer.When.Unix()
-	excludes[commit.Hash] = true
-	return append(graphs, g), excludes, true
+	commits[commit.Hash] = g
+	return commits, true
 }
 
 var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
