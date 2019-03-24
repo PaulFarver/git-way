@@ -2,3 +2,31 @@
     transform: rotate(90deg) translate(30px, 0px);
     text-anchor: start
 }
+
+.commitnode {
+    fill: none;
+    stroke-width: 3px;
+}
+
+.importantcommit {
+    fill: white;
+    stroke: black;
+}
+
+.commitline{
+    stroke-width: 3px;
+    stroke: black
+}
+
+.squashlabel{
+    text-anchor: middle;
+    fill: white;
+}
+
+.squashlabeltext{
+    text-anchor: middle;
+    font-family: "Lucida Console", Monaco, monospace;
+}
+
+.taglabel {
+}
