@@ -122,8 +122,8 @@ function render(svg, graph) {
   graph.forEach(element => {
     element.parentIds.forEach(id => {
       if (
-        nodeMap[element.id] &&
-        nodeMap[id] &&
+        nodeMap[element.id] != null &&
+        nodeMap[id] != null &&
         nodes[nodeMap[id]].branch != element.branch
       ) {
         links.push({
