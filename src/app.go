@@ -98,7 +98,7 @@ func main() {
 			fmt.Println("Walking branch: " + name)
 			hash := branches[name]
 			c, _ := repo.CommitObject(hash)
-			commits, _ = WalkCommit(c, commits, checktime, GraphNode{Branch: name, References: []CommitRef{}})
+			commits, _, _ = WalkCommit(c, commits, checktime, GraphNode{Branch: name, References: []CommitRef{}})
 			fmt.Printf("found %v commits\n", len(commits))
 		}
 	}
@@ -129,25 +129,30 @@ func main() {
 	check(err)
 }
 
-func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, checktime time.Time, template GraphNode) (map[plumbing.Hash]GraphNode, bool) {
+func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, checktime time.Time, template GraphNode) (map[plumbing.Hash]GraphNode, bool, bool) {
 	// Check if commit has been parsed before
 	if commit.Committer.When.Before(checktime) {
-		return commits, false
+		return commits, false, true
 	}
 	if i, ok := commits[commit.Hash]; ok && i.Branch != template.Branch {
 		i.Important = true
 		commits[commit.Hash] = i
-		return commits, true
+		return commits, true, true
 	}
 	if _, ok := commits[commit.Hash]; ok {
-		return commits, true
+		return commits, true, false
 	}
 	// graphs := []GraphNode{}
 	parentIds := []string{}
+	becomeImportant := false
 	// Parse parents
+	if commit.NumParents() == 0 {
+		becomeImportant = true
+	}
 	commit.Parents().ForEach(func(parent *object.Commit) error {
-		ex, include := WalkCommit(parent, commits, checktime, template)
+		ex, include, b := WalkCommit(parent, commits, checktime, template)
 		commits = ex
+		becomeImportant = b
 		// graphs = append(graphs, parentGraphs...)
 		if include {
 			parentIds = append(parentIds, parent.Hash.String())
@@ -158,8 +163,9 @@ func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, chec
 	g.Hash = commit.Hash.String()
 	g.Parents = parentIds
 	g.Timestamp = commit.Committer.When.Unix()
+	g.Important = becomeImportant
 	commits[commit.Hash] = g
-	return commits, true
+	return commits, true, false
 }
 
 var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
