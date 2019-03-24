@@ -36,10 +36,9 @@ func check(err error) {
 }
 
 func ensureRepo() *git.Repository {
-	// repo, err := git.PlainOpen("../../../Winterpath/Mach2")
-	repo, err := git.PlainOpen("../temp/foo")
+	repo, err := git.PlainOpen("../temp/go-git")
 	if err != nil {
-		repo, err = git.PlainClone("../temp/foo", false, &git.CloneOptions{
+		repo, err = git.PlainClone("../temp/go-git", false, &git.CloneOptions{
 			URL:      "https://github.com/src-d/go-git",
 			Progress: os.Stdout,
 		})
@@ -104,6 +103,7 @@ func main() {
 		}
 	}
 
+	// Assign references
 	for k, v := range references {
 		if c, ok := commits[v]; ok {
 			fmt.Println("Assigning " + k.Short())
@@ -117,10 +117,10 @@ func main() {
 		}
 	}
 
+	// Collect graphs
 	for _, v := range commits {
 		graphs = append(graphs, v)
 	}
-	// graphs = append(graphs, allcommits...)
 
 	// Write to file
 	b, err := json.Marshal(graphs)
