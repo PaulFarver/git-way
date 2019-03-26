@@ -53,16 +53,29 @@ func ensureRepo() *git.Repository {
 	return repo
 }
 
-func getCommits(repo *git.Repository) object.CommitIter {
-	commits, err := repo.CommitObjects()
-	check(err)
-	return commits
-}
-
 func getCheckTime(currTime time.Time, duration string) time.Time {
 	dur, err := time.ParseDuration(duration)
 	check(err)
 	return currTime.Add(-dur)
+}
+
+var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
+var featureregex = regexp.MustCompile(`feature\/(.+)`)
+
+func AssignPriority(branch plumbing.ReferenceName) int {
+	if featureregex.Match([]byte(branch)) {
+		return 3
+	}
+	if hotfixregex.Match([]byte(branch)) {
+		return 1
+	}
+	if branch.Short() == "master" || branch.Short() == "origin/master" {
+		return 0
+	}
+	if branch.Short() == "develop" || branch.Short() == "origin/develop" {
+		return 2
+	}
+	return 4
 }
 
 func main() {
@@ -164,23 +177,4 @@ func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, chec
 	g.Important = becomeImportant
 	commits[commit.Hash] = g
 	return commits, true, false
-}
-
-var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
-var featureregex = regexp.MustCompile(`feature\/(.+)`)
-
-func AssignPriority(branch plumbing.ReferenceName) int {
-	if featureregex.Match([]byte(branch)) {
-		return 3
-	}
-	if hotfixregex.Match([]byte(branch)) {
-		return 1
-	}
-	if branch.Short() == "master" || branch.Short() == "origin/master" {
-		return 0
-	}
-	if branch.Short() == "develop" || branch.Short() == "origin/develop" {
-		return 2
-	}
-	return 4
 }
