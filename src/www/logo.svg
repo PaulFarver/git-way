@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<svg version="1.1" id="Calque_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 64 64" xml:space="preserve">
-<g>
-    <line x1="24" x2="24" y1="14" y2="54" stroke="#4e32ef" stroke-width="6"/>
-    <line x1="12.5" x2="44" y1="2.5" y2="34" stroke="#F05033" stroke-width="6"/>
-    <circle cx="24" cy="14" r="8" stroke="#F05033" fill="#F05033" stroke-width="0"/>
-    <circle cx="44" cy="34" r="8" stroke="#F05033" fill="#F05033" stroke-width="0"/>
-    <circle cx="24" cy="54" r="8" stroke="#4e32ef" fill="#4e32ef" stroke-width="0"/>
-</g>
+<svg version="1.1" id="Calque_1" 
+    xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 64 64" xml:space="preserve">
+    <g>
+        <line x1="24" x2="24" y1="14" y2="54" stroke="#4e32ef" stroke-width="6"/>
+        <line x1="12.5" x2="44" y1="2.5" y2="34" stroke="#F05033" stroke-width="6"/>
+        <circle cx="24" cy="14" r="8" stroke="#F05033" fill="#F05033" stroke-width="0"/>
+        <circle cx="44" cy="34" r="8" stroke="#F05033" fill="#F05033" stroke-width="0"/>
+        <circle cx="24" cy="54" r="8" stroke="#4e32ef" fill="#4e32ef" stroke-width="0"/>
+    </g>
 </svg>
