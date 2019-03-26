@@ -1,0 +1,5 @@
+{
+  "git.enableCommitSigning": true,
+  "liveServer.settings.multiRootWorkspaceName": "git-way",
+  "liveServer.settings.root": "src/www/"
+}
