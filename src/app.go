@@ -14,11 +14,9 @@ import (
 )
 
 type GraphNode struct {
-	Hash       string      `json:"id"`
-	Title      string      `json:"title"`
+	Hash       string      `json:"hash"`
 	Branch     string      `json:"branch"`
-	Amount     int         `json:"amount"`
-	Parents    []string    `json:"parentIds"`
+	Parents    []string    `json:"parentHashes"`
 	Timestamp  int64       `json:"timestamp"`
 	Important  bool        `json:"important"`
 	References []CommitRef `json:"references"`
