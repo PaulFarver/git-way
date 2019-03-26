@@ -19,22 +19,22 @@ client.get("graph.json", function(response) {
 });
 
 colormap = {
-  0: "#3B4968",
-  1: "#9C9451",
-  2: "#4E3C6A",
-  3: "#9C8351",
-  4: "#000000"
-}
+  0: "#2b303a",
+  1: "#3772ff",
+  2: "#f05033",
+  3: "#453f78",
+  4: "#759aab"
+};
 
 function getPrecedence(branch) {
   if (branch == "origin/master") {
     return 0;
   }
-  if (branch == "origin/develop") {
-    return 2;
-  }
   if (branch.startsWith("origin/hotfix/")) {
     return 1;
+  }
+  if (branch == "origin/develop") {
+    return 2;
   }
   if (branch.startsWith("origin/feature/")) {
     return 3;
@@ -44,7 +44,7 @@ function getPrecedence(branch) {
 
 branchYs = {};
 curry = 50;
-diff = 80
+diff = 80;
 
 function getY(branch) {
   if (branchYs[branch] == null) {
@@ -144,12 +144,13 @@ function render(svg, graph) {
   for (var key in branchYs) {
     key + branchYs[key];
     let c;
-    svg.append("rect")
-      .attr("y", branchYs[key]-diff/2)
+    svg
+      .append("rect")
+      .attr("y", branchYs[key] - diff / 2)
       .attr("x", -125)
       .attr("height", diff)
-      .attr("width", w+250)
-      .attr("fill", colormap[getPrecedence(key)])
+      .attr("width", w + 250)
+      .attr("fill", colormap[getPrecedence(key)]);
   }
 
   s = svg
@@ -169,7 +170,7 @@ function render(svg, graph) {
     .attr("cy", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
     .attr("r", 20)
-    .attr("fill", d => colormap[getPrecedence(d.source.branch)])
+    .attr("fill", d => colormap[getPrecedence(d.source.branch)]);
   s.filter(d => d.count > 0)
     .append("text")
     .attr("x", d => (d.source.x + d.target.x) / 2)
