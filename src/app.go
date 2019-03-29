@@ -21,8 +21,10 @@ type Graph struct {
 }
 
 type GraphBranch struct {
-	Name  string               `json:"name"`
-	Nodes map[string]GraphNode `json:"nodes"`
+	Name       string               `json:"name"`
+	Nodes      map[string]GraphNode `json:"nodes"`
+	LastCommit int64                `json:"lastcommit"`
+	Priority   int                  `json:"priority"`
 }
 
 type GraphNode struct {
@@ -36,7 +38,7 @@ type CommitRef struct {
 }
 
 var currentTime = time.Now()
-var checktime = getCheckTime(currentTime, "10000h")
+var checktime = getCheckTime(currentTime, "178h")
 
 func check(err error) {
 	if err != nil {
@@ -102,12 +104,14 @@ func main() {
 	refIter, err := repo.References()
 	check(err)
 	refIter.ForEach(func(r *plumbing.Reference) error {
-		if r.Name().IsRemote() {
-			branches[AssignPriority(r.Name())] = append(branches[AssignPriority(r.Name())], GraphBranch{Name: r.Name().Short()})
+		c, _ := repo.CommitObject(r.Hash())
+		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
+			branches[AssignPriority(r.Name())] = append(branches[AssignPriority(r.Name())], GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name())})
 			branchHeads[r.Name().Short()] = r.Hash()
+			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
 		}
 		if r.Name().IsTag() {
-			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().String(), Type: "tag"})
+			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "tag"})
 		}
 		return nil
 	})
