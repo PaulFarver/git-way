@@ -26,22 +26,6 @@ colormap = {
   4: "#759aab"
 };
 
-function getPrecedence(branch) {
-  if (branch == "origin/master") {
-    return 0;
-  }
-  if (branch.startsWith("origin/hotfix/")) {
-    return 1;
-  }
-  if (branch == "origin/develop") {
-    return 2;
-  }
-  if (branch.startsWith("origin/feature/")) {
-    return 3;
-  }
-  return 4;
-}
-
 branchYs = {};
 curry = 50;
 diff = 80;
@@ -54,19 +38,14 @@ function getY(branch) {
   return branchYs[branch];
 }
 
+function getX(timestamp) {
+  return function(width, min, max) {
+    return (width * (timestamp - min)) / (max - min);
+  };
+}
+
 function render(svg, graph) {
   count = {};
-  graph
-    .sort((g1, g2) => {
-      return g1.timestamp - g2.timestamp;
-    })
-    .sort((g1, g2) => {
-      return getPrecedence(g1.branch) - getPrecedence(g2.branch);
-    })
-    .forEach(element => {
-      count[element.branch] = 0;
-      getY(element.branch);
-    });
   var w = 1800;
   var h = 600;
   var padding = 60;
@@ -75,71 +54,101 @@ function render(svg, graph) {
     "viewBox",
     `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
   );
-  let min = graph[0].timestamp;
-  let max = graph[0].timestamp;
-  graph
-    .sort((g1, g2) => {
-      return g2.timestamp - g1.timestamp;
-    })
-    .forEach(element => {
-      if (element.timestamp > max) {
-        max = element.timestamp;
-      }
-      if (element.timestamp < min) {
-        min = element.timestamp;
-      }
-    });
-  nodeMap = [];
-  nodes = [];
-  links = [];
-  last = {};
-  graph
-    .sort((g1, g2) => {
-      return g1.timestamp - g2.timestamp;
-    })
-    .forEach(element => {
-      let x = ((element.timestamp - min) / (max - min)) * w;
-      count[element.branch] = count[element.branch] + 1;
-      // count++;
 
-      if (element.important) {
-        let node = {
-          hash: element.hash,
-          x: x,
-          y: getY(element.branch),
-          important: element.important,
-          branch: element.branch,
-          refs: element.references,
-          parents: element.parentHashes
-        };
-        nodes.push(node);
-        nodeMap[element.hash] = nodes.length - 1;
-        if (last[element.branch] != null) {
-          links.push({
-            source: nodes[nodes.length - 1],
-            target: nodes[last[element.branch]],
-            count: count[element.branch]
-          });
+  let min;
+  let max;
+  let nodes = [];
+  let nodeMap = {};
+  let links = [];
+
+  graph.branches.forEach(branch => {
+    for (let hash in branch.nodes) {
+      let commit = branch.nodes[hash];
+      node = {
+        x: getX(commit.timestamp),
+        timestamp: commit.timestamp,
+        y: getY(branch.name),
+        important: false
+      };
+
+      min = commit.timestamp < min || !min ? commit.timestamp : min;
+      max = commit.timestamp > max || !max ? commit.timestamp : max;
+      branch.min =
+        commit.timestamp < branch.min || !branch.min
+          ? commit.timestamp
+          : branch.min;
+      branch.max =
+        commit.timestamp > branch.max || !branch.max
+          ? commit.timestamp
+          : branch.max;
+
+      nodes.push(node);
+      nodeMap[hash] = node;
+      commit.parentHashes.forEach(parent => {
+        console.log(branch.nodes[parent]);
+        if (!branch.nodes[parent]) {
+          console.log("hello");
+          node.important = true;
+          if (nodeMap[parent]) {
+            links.push({
+              source: node,
+              target: nodeMap[parent]
+            });
+            nodeMap[parent].important = true;
+          }
         }
-        last[element.branch] = nodes.length - 1;
-        count[element.branch] = 0;
-      }
-    });
-  graph.forEach(element => {
-    element.parentHashes.forEach(hash => {
-      if (
-        nodeMap[element.hash] != null &&
-        nodeMap[hash] != null &&
-        nodes[nodeMap[hash]].branch != element.branch
-      ) {
-        links.push({
-          source: nodes[nodeMap[element.hash]],
-          target: nodes[nodeMap[hash]],
-          count: 0
-        });
-      }
-    });
+      });
+    }
   });
+
+  last = {};
+  // graph
+  //   .sort((g1, g2) => {
+  //     return g1.timestamp - g2.timestamp;
+  //   })
+  //   .forEach(element => {
+  //     let x = ((element.timestamp - min) / (max - min)) * w;
+  //     count[element.branch] = count[element.branch] + 1;
+  //     // count++;
+
+  //     if (element.important) {
+  //       let node = {
+  //         hash: element.hash,
+  //         x: x,
+  //         y: getY(element.branch),
+  //         important: element.important,
+  //         branch: element.branch,
+  //         refs: element.references,
+  //         parents: element.parentHashes
+  //       };
+  //       nodes.push(node);
+  //       nodeMap[element.hash] = nodes.length - 1;
+  //       if (last[element.branch] != null) {
+  //         links.push({
+  //           source: nodes[nodes.length - 1],
+  //           target: nodes[last[element.branch]],
+  //           count: count[element.branch]
+  //         });
+  //       }
+  //       last[element.branch] = nodes.length - 1;
+  //       count[element.branch] = 0;
+  //     }
+  //   });
+  // graph.forEach(element => {
+  //   element.parentHashes.forEach(hash => {
+  //     if (
+  //       nodeMap[element.hash] != null &&
+  //       nodeMap[hash] != null &&
+  //       nodes[nodeMap[hash]].branch != element.branch
+  //     ) {
+  //       links.push({
+  //         source: nodes[nodeMap[element.hash]],
+  //         target: nodes[nodeMap[hash]],
+  //         count: 0
+  //       });
+  //     }
+  //   });
+  // });
 
   for (var key in branchYs) {
     key + branchYs[key];
@@ -149,8 +158,8 @@ function render(svg, graph) {
       .attr("y", branchYs[key] - diff / 2)
       .attr("x", -125)
       .attr("height", diff)
-      .attr("width", w + 250)
-      .attr("fill", colormap[getPrecedence(key)]);
+      .attr("width", w + 250);
+    // .attr("fill", colormap[getPrecedence(key)]);
   }
 
   s = svg
@@ -158,22 +167,22 @@ function render(svg, graph) {
     .data(links)
     .enter();
   s.append("line")
-    .attr("x1", d => d.source.x)
+    .attr("x1", d => d.source.x(w, min, max))
     .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
+    .attr("x2", d => d.target.x(w, min, max))
     .attr("y2", d => d.target.y)
     .attr("class", "commitline");
   s.filter(d => d.count > 0)
     .append("svg:circle")
     .attr("class", "squashlabel")
-    .attr("cx", d => (d.source.x + d.target.x) / 2)
+    .attr("cx", d => (d.source.x(w, min, max) + d.target.x(w, min, max)) / 2)
     .attr("cy", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
     .attr("r", 20)
     .attr("fill", d => colormap[getPrecedence(d.source.branch)]);
   s.filter(d => d.count > 0)
     .append("text")
-    .attr("x", d => (d.source.x + d.target.x) / 2)
+    .attr("x", d => (d.source.x(w, min, max) + d.target.x(w, min, max)) / 2)
     .attr("y", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
     .text(d => d.count)
@@ -189,100 +198,81 @@ function render(svg, graph) {
     .data(nodes)
     .enter()
     .append("g")
-    .attr("transform", ({ x, y }) => `translate(${x}, ${y})`);
+    .attr("transform", ({ x, y }) => `translate(${x(w, min, max)}, ${y})`);
 
   cNodes
     .append("svg:circle")
     .attr("r", 5)
-    .attr("fill", d => colormap[getPrecedence(d.branch)])
-    .attr("class", d => {
-      let c = "commitnode";
-      if (d.important) {
-        c = c + " importantcommit";
-      }
-      if (d.branch == "origin/master") {
-        c = c + " master";
-      }
-      if (d.branch.startsWith("origin/hotfix")) {
-        c = c + " hotfix";
-      }
-      if (d.branch.startsWith("origin/feature")) {
-        c = c + " feature";
-      }
-      if (d.branch == "origin/develop") {
-        c = c + " develop";
-      }
-      return c;
-    });
-
-  taggs = cNodes
-    .filter(d => {
-      let k = false;
-      d.refs.forEach(r => {
-        if (r.type == "tag") {
-          k = true;
-        }
-      });
-      return k;
-    })
-    .append("g")
-    .attr("x", 15)
-    .attr("y", 1)
-    .attr("transform", `rotate(-60) translate(10,0)`);
-
-  taggs
-    .append("path")
-    .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
-    .attr("fill", "grey");
-  taggs
-    .append("text")
-    .text(d => {
-      let s = "";
-      d.refs.forEach(r => {
-        if (r.type == "tag") {
-          s = r.ref;
-        }
-      });
-      return s;
-    })
-    .attr("font-family", '"Lucida Console", Monaco, monospace')
-    .attr("font-size", "15px")
-    .attr("class", "taglabel")
-    .attr("text-anchor", "start")
-    .attr("alignment-baseline", "middle")
-    .attr("transform", "translate(15,1)")
     .attr("fill", "white");
 
-  branchgs = cNodes
-    .filter(d => {
-      let k = false;
-      d.refs.forEach(r => {
-        if (r.type == "branch") {
-          k = true;
-        }
-      });
-      return k;
-    })
-    .append("g")
-    .attr("x", 15)
-    .attr("y", 0)
-    .attr("transform", `translate(15,5)`);
+  // taggs = cNodes
+  //   .filter(d => {
+  //     let k = false;
+  //     d.refs.forEach(r => {
+  //       if (r.type == "tag") {
+  //         k = true;
+  //       }
+  //     });
+  //     return k;
+  //   })
+  //   .append("g")
+  //   .attr("x", 15)
+  //   .attr("y", 1)
+  //   .attr("transform", `rotate(-60) translate(10,0)`);
 
-  branchgs
-    .append("text")
-    .text(d => {
-      let s = "";
-      d.refs.forEach(r => {
-        if (r.type == "branch") {
-          if (r.ref.startsWith("origin/")) {
-            s = r.ref.substr(7);
-          }
-        }
-      });
-      return s;
-    })
-    .attr("font-family", '"Lucida Console", Monaco, monospace')
-    .attr("font-size", "15px")
-    .attr("class", "branchlabel")
-    .attr("text-anchor", "start");
+  // taggs
+  //   .append("path")
+  //   .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
+  //   .attr("fill", "grey");
+  // taggs
+  //   .append("text")
+  //   .text(d => {
+  //     let s = "";
+  //     d.refs.forEach(r => {
+  //       if (r.type == "tag") {
+  //         s = r.ref;
+  //       }
+  //     });
+  //     return s;
+  //   })
+  //   .attr("font-family", '"Lucida Console", Monaco, monospace')
+  //   .attr("font-size", "15px")
+  //   .attr("class", "taglabel")
+  //   .attr("text-anchor", "start")
+  //   .attr("alignment-baseline", "middle")
+  //   .attr("transform", "translate(15,1)")
+  //   .attr("fill", "white");
+
+  // branchgs = cNodes
+  //   .filter(d => {
+  //     let k = false;
+  //     d.refs.forEach(r => {
+  //       if (r.type == "branch") {
+  //         k = true;
+  //       }
+  //     });
+  //     return k;
+  //   })
+  //   .append("g")
+  //   .attr("x", 15)
+  //   .attr("y", 0)
+  //   .attr("transform", `translate(15,5)`);
+
+  // branchgs
+  //   .append("text")
+  //   .text(d => {
+  //     let s = "";
+  //     d.refs.forEach(r => {
+  //       if (r.type == "branch") {
+  //         if (r.ref.startsWith("origin/")) {
+  //           s = r.ref.substr(7);
+  //         }
+  //       }
+  //     });
+  //     return s;
+  //   })
+  //   .attr("font-family", '"Lucida Console", Monaco, monospace')
+  //   .attr("font-size", "15px")
+  //   .attr("class", "branchlabel")
+  //   .attr("text-anchor", "start");
 }
