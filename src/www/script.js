@@ -44,7 +44,7 @@ colormap = {
 
 branchYs = {};
 curry = 50;
-diff = 20;
+diff = 30;
 
 function getY(branch) {
   if (branchYs[branch] == null) {
@@ -77,13 +77,20 @@ function render(svg, graph) {
   let nodeMap = {};
   let links = [];
 
-  graph.branches.forEach(branch => {
+  graph.branches
+  .sort((b1, b2) => {return b2.lastcommit - b1.lastcommit})
+  .sort((b1, b2) => {return b1.priority - b2.priority})
+  .forEach(branch => {
+    if (branch.lastcommit < min && branch.name != "origin/master" && branch.name != "origin/develop"){
+      return null;
+    }
     for (let hash in branch.nodes) {
       let commit = branch.nodes[hash];
       node = {
         x: ((commit.timestamp - min) / (max - min)) * w,
         y: getY(branch.name),
-        important: false
+        important: false,
+        refs: []
       };
       if (commit.timestamp < min) {
         node.x = -40;
@@ -126,6 +133,16 @@ function render(svg, graph) {
       })
     }
   });
+
+  for(let ref in graph.references){
+    console.log(graph.references[ref])
+    // nodeMap[ref].refs = graph.references[ref]
+    if (nodeMap[ref]){
+      nodeMap[ref].important = true
+      nodeMap[ref].refs = graph.references[ref]
+    }
+    // nodeMap[ref].important = true
+  }
 
   last = {};
   // graph
@@ -232,74 +249,74 @@ function render(svg, graph) {
     .attr("r", n => n.important && !n.prehistoric ? 6 : 0)
     .attr("fill", "white")
 
-  // taggs = cNodes
-  //   .filter(d => {
-  //     let k = false;
-  //     d.refs.forEach(r => {
-  //       if (r.type == "tag") {
-  //         k = true;
-  //       }
-  //     });
-  //     return k;
-  //   })
-  //   .append("g")
-  //   .attr("x", 15)
-  //   .attr("y", 1)
-  //   .attr("transform", `rotate(-60) translate(10,0)`);
+  taggs = cNodes
+    .filter(d => {
+      let k = false;
+      d.refs.forEach(r => {
+        if (r.type == "tag") {
+          k = true;
+        }
+      });
+      return k;
+    })
+    .append("g")
+    .attr("x", 15)
+    .attr("y", 1)
+    .attr("transform", `rotate(-60) translate(10,0)`);
 
-  // taggs
-  //   .append("path")
-  //   .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
-  //   .attr("fill", "grey");
-  // taggs
-  //   .append("text")
-  //   .text(d => {
-  //     let s = "";
-  //     d.refs.forEach(r => {
-  //       if (r.type == "tag") {
-  //         s = r.ref;
-  //       }
-  //     });
-  //     return s;
-  //   })
-  //   .attr("font-family", '"Lucida Console", Monaco, monospace')
-  //   .attr("font-size", "15px")
-  //   .attr("class", "taglabel")
-  //   .attr("text-anchor", "start")
-  //   .attr("alignment-baseline", "middle")
-  //   .attr("transform", "translate(15,1)")
-  //   .attr("fill", "white");
+  taggs
+    .append("path")
+    .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
+    .attr("fill", "grey");
+  taggs
+    .append("text")
+    .text(d => {
+      let s = "";
+      d.refs.forEach(r => {
+        if (r.type == "tag") {
+          s = r.ref;
+        }
+      });
+      return s;
+    })
+    .attr("font-family", '"Lucida Console", Monaco, monospace')
+    .attr("font-size", "15px")
+    .attr("class", "taglabel")
+    .attr("text-anchor", "start")
+    .attr("alignment-baseline", "middle")
+    .attr("transform", "translate(15,1)")
+    .attr("fill", "white");
 
-  // branchgs = cNodes
-  //   .filter(d => {
-  //     let k = false;
-  //     d.refs.forEach(r => {
-  //       if (r.type == "branch") {
-  //         k = true;
-  //       }
-  //     });
-  //     return k;
-  //   })
-  //   .append("g")
-  //   .attr("x", 15)
-  //   .attr("y", 0)
-  //   .attr("transform", `translate(15,5)`);
+  branchgs = cNodes
+    .filter(d => {
+      let k = false;
+      d.refs.forEach(r => {
+        if (r.type == "branch") {
+          k = true;
+        }
+      });
+      return k;
+    })
+    .append("g")
+    .attr("x", 15)
+    .attr("y", 0)
+    .attr("transform", `translate(15,5)`);
 
-  // branchgs
-  //   .append("text")
-  //   .text(d => {
-  //     let s = "";
-  //     d.refs.forEach(r => {
-  //       if (r.type == "branch") {
-  //         if (r.ref.startsWith("origin/")) {
-  //           s = r.ref.substr(7);
-  //         }
-  //       }
-  //     });
-  //     return s;
-  //   })
-  //   .attr("font-family", '"Lucida Console", Monaco, monospace')
-  //   .attr("font-size", "15px")
-  //   .attr("class", "branchlabel")
-  //   .attr("text-anchor", "start");
+  branchgs
+    .append("text")
+    .text(d => {
+      let s = "";
+      d.refs.forEach(r => {
+        if (r.type == "branch") {
+          if (r.ref.startsWith("origin/")) {
+            s = r.ref.substr(7);
+          }
+        }
+      });
+      return s;
+    })
+    .attr("font-family", '"Lucida Console", Monaco, monospace')
+    .attr("font-size", "15px")
+    .attr("class", "branchlabel")
+    .attr("text-anchor", "start");
 }
