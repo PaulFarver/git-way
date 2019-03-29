@@ -141,8 +141,8 @@ func WalkCommit(commit *object.Commit, nodes map[string]GraphNode, parsed map[st
 			parentHashes = append(parentHashes, parent.Hash.String())
 			return nil
 		})
+		parsed[commit.Hash.String()] = true
 	}
-	parsed[commit.Hash.String()] = true
 	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
 	return nodes, parsed
 }
