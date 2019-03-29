@@ -18,6 +18,22 @@ client.get("graph.json", function(response) {
   render(svg, JSON.parse(response));
 });
 
+function getColor(branch){
+  if (branch == "origin/master"){
+    return colormap[2]
+  }
+  if (branch == "origin/develop"){
+    return colormap[1]
+  }
+  if (branch.startsWith("origin/hotfix/")){
+    return colormap[0]
+  }
+  if (branch.startsWith("origin/feature/")){
+    return colormap[3]
+  }
+  return colormap[4];
+}
+
 colormap = {
   0: "#2b303a",
   1: "#3772ff",
@@ -28,7 +44,7 @@ colormap = {
 
 branchYs = {};
 curry = 50;
-diff = 80;
+diff = 20;
 
 function getY(branch) {
   if (branchYs[branch] == null) {
@@ -47,7 +63,7 @@ function getX(timestamp) {
 function render(svg, graph) {
   count = {};
   var w = 1800;
-  var h = 600;
+  var h = 1000;
   var padding = 60;
   svg.attr("width", w).attr("height", h);
   svg.attr(
@@ -168,8 +184,8 @@ function render(svg, graph) {
       .attr("y", branchYs[key] - diff / 2)
       .attr("x", -125)
       .attr("height", diff)
-      .attr("width", w + 250);
-    // .attr("fill", colormap[getPrecedence(key)]);
+      .attr("width", w + 250)
+      .attr("fill", getColor(key));
   }
 
   s = svg
