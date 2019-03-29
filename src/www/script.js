@@ -55,8 +55,8 @@ function render(svg, graph) {
     `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
   );
 
-  let min;
-  let max;
+  let min = graph.mintime;
+  let max = graph.maxtime;
   let nodes = [];
   let nodeMap = {};
   let links = [];
@@ -65,29 +65,24 @@ function render(svg, graph) {
     for (let hash in branch.nodes) {
       let commit = branch.nodes[hash];
       node = {
-        x: getX(commit.timestamp),
-        timestamp: commit.timestamp,
+        x: ((commit.timestamp - min) / (max - min)) * w,
         y: getY(branch.name),
         important: false
       };
-
-      min = commit.timestamp < min || !min ? commit.timestamp : min;
-      max = commit.timestamp > max || !max ? commit.timestamp : max;
-      branch.min =
-        commit.timestamp < branch.min || !branch.min
-          ? commit.timestamp
-          : branch.min;
-      branch.max =
-        commit.timestamp > branch.max || !branch.max
-          ? commit.timestamp
-          : branch.max;
-
+      if (commit.timestamp < min) {
+        node.x = -40;
+        node.prehistoric = true;
+        branch.prehistoric = node;
+      } else {
+        branch.first =
+          !branch.first || node.x < branch.first.x ? node : branch.first;
+        branch.last =
+          !branch.last || node.x > branch.last.x ? node : branch.last;
+      }
       nodes.push(node);
       nodeMap[hash] = node;
       commit.parentHashes.forEach(parent => {
-        console.log(branch.nodes[parent]);
         if (!branch.nodes[parent]) {
-          console.log("hello");
           node.important = true;
           if (nodeMap[parent]) {
             links.push({
@@ -98,6 +93,21 @@ function render(svg, graph) {
           }
         }
       });
+    }
+    if (branch.prehistoric && branch.first){
+      branch.first.important = true
+      links.push({
+        source: branch.prehistoric,
+        target: branch.first,
+      })
+    }
+    if (branch.first && branch.last){
+      branch.first.important = true
+      branch.last.important = true
+      links.push({
+        source: branch.first,
+        target: branch.last,
+      })
     }
   });
 
@@ -167,22 +177,23 @@ function render(svg, graph) {
     .data(links)
     .enter();
   s.append("line")
-    .attr("x1", d => d.source.x(w, min, max))
+    .attr("x1", d => d.source.x)
     .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x(w, min, max))
+    .attr("x2", d => d.target.x)
     .attr("y2", d => d.target.y)
-    .attr("class", "commitline");
+    .attr("class", "commitline")
+    .attr("stroke-dasharray", l => l.source.prehistoric || l.target.prehistoric ? 5 : 0)
   s.filter(d => d.count > 0)
     .append("svg:circle")
     .attr("class", "squashlabel")
-    .attr("cx", d => (d.source.x(w, min, max) + d.target.x(w, min, max)) / 2)
+    .attr("cx", d => (d.source.x + d.target.x) / 2)
     .attr("cy", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
     .attr("r", 20)
     .attr("fill", d => colormap[getPrecedence(d.source.branch)]);
   s.filter(d => d.count > 0)
     .append("text")
-    .attr("x", d => (d.source.x(w, min, max) + d.target.x(w, min, max)) / 2)
+    .attr("x", d => (d.source.x + d.target.x) / 2)
     .attr("y", d => (d.source.y + d.target.y) / 2)
     .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
     .text(d => d.count)
@@ -198,12 +209,12 @@ function render(svg, graph) {
     .data(nodes)
     .enter()
     .append("g")
-    .attr("transform", ({ x, y }) => `translate(${x(w, min, max)}, ${y})`);
+    .attr("transform", ({ x, y }) => `translate(${x}, ${y})`);
 
   cNodes
     .append("svg:circle")
-    .attr("r", 5)
-    .attr("fill", "white");
+    .attr("r", n => n.important && !n.prehistoric ? 6 : 0)
+    .attr("fill", "white")
 
   // taggs = cNodes
   //   .filter(d => {
