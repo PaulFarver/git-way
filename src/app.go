@@ -16,6 +16,8 @@ import (
 type Graph struct {
 	Branches   []GraphBranch          `json:"branches"`
 	References map[string][]CommitRef `json:"references"`
+	Maxtime    int64                  `json:"maxtime"`
+	Mintime    int64                  `json:"mintime"`
 }
 
 type GraphBranch struct {
@@ -33,7 +35,8 @@ type CommitRef struct {
 	Type string `json:"type"`
 }
 
-var checktime = getCheckTime(time.Now(), "10000h")
+var currentTime = time.Now()
+var checktime = getCheckTime(currentTime, "10000h")
 
 func check(err error) {
 	if err != nil {
@@ -92,7 +95,7 @@ func main() {
 
 	branches := [][]GraphBranch{[]GraphBranch{}, []GraphBranch{}, []GraphBranch{}, []GraphBranch{}, []GraphBranch{}}
 	branchHeads := make(map[string]plumbing.Hash)
-	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef)}
+	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: currentTime.Unix(), Mintime: checktime.Unix()}
 
 	// Discover branches
 	fmt.Println("Discovering remote branches...")
