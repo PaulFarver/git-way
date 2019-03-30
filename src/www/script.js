@@ -18,18 +18,18 @@ client.get("graph.json", function(response) {
   render(svg, JSON.parse(response));
 });
 
-function getColor(branch){
-  if (branch == "origin/master"){
-    return colormap[2]
+function getColor(branch) {
+  if (branch == "origin/master") {
+    return colormap[2];
   }
-  if (branch == "origin/develop"){
-    return colormap[1]
+  if (branch == "origin/develop") {
+    return colormap[1];
   }
-  if (branch.startsWith("origin/hotfix/")){
-    return colormap[0]
+  if (branch.startsWith("origin/hotfix/")) {
+    return colormap[0];
   }
-  if (branch.startsWith("origin/feature/")){
-    return colormap[3]
+  if (branch.startsWith("origin/feature/")) {
+    return colormap[3];
   }
   return colormap[4];
 }
@@ -61,7 +61,6 @@ function getX(timestamp) {
 }
 
 function render(svg, graph) {
-  count = {};
   var w = 1800;
   var h = 1000;
   var padding = 60;
@@ -78,120 +77,61 @@ function render(svg, graph) {
   let links = [];
 
   graph.branches
-  .sort((b1, b2) => {return b2.lastcommit - b1.lastcommit})
-  .sort((b1, b2) => {return b1.priority - b2.priority})
-  .forEach(branch => {
-    if (branch.lastcommit < min && branch.name != "origin/master" && branch.name != "origin/develop"){
-      return null;
-    }
-    for (let hash in branch.nodes) {
-      let commit = branch.nodes[hash];
-      node = {
-        x: ((commit.timestamp - min) / (max - min)) * w,
-        y: getY(branch.name),
-        important: false,
-        refs: []
-      };
-      if (commit.timestamp < min) {
-        node.x = -40;
-        node.prehistoric = true;
-        branch.prehistoric = node;
-      } else {
-        branch.first =
-          !branch.first || node.x < branch.first.x ? node : branch.first;
-        branch.last =
-          !branch.last || node.x > branch.last.x ? node : branch.last;
+    .sort((b1, b2) => b2.lastcommit - b1.lastcommit)
+    .sort((b1, b2) => b1.priority - b2.priority)
+    .forEach(branch => {
+      let first, last, prehistoric;
+      if (branch.lastcommit < min) {
+        return;
       }
-      nodes.push(node);
-      nodeMap[hash] = node;
-      commit.parentHashes.forEach(parent => {
-        if (!branch.nodes[parent]) {
-          node.important = true;
-          if (nodeMap[parent]) {
-            links.push({
-              source: node,
-              target: nodeMap[parent]
-            });
-            nodeMap[parent].important = true;
-          }
+      for (let hash in branch.nodes) {
+        let commit = branch.nodes[hash];
+        node = {
+          hash: hash,
+          x: ((commit.timestamp - min) / (max - min)) * w,
+          y: getY(branch.name),
+          important: false,
+          refs: [],
+          prehistoric: commit.timestamp < min
+        };
+        if (node.prehistoric) {
+          prehistoric = node;
+        } else {
+          first = !first || node.x < first.x ? node : first;
+          last = !last || node.x > last.x ? node : last;
         }
+        nodes.push(node);
+        nodeMap[hash] = node;
+        commit.parentHashes.forEach(parent => {
+          if (!branch.nodes[parent]) {
+            node.important = true;
+            links.push({
+              sourcehash: hash,
+              targethash: parent
+            });
+          }
+        });
+      }
+      first.important = true;
+      last.important = true;
+      links.push({
+        sourcehash: last.hash,
+        targethash: first.hash
       });
-    }
-    if (branch.prehistoric && branch.first){
-      branch.first.important = true
-      links.push({
-        source: branch.prehistoric,
-        target: branch.first,
-      })
-    }
-    if (branch.first && branch.last){
-      branch.first.important = true
-      branch.last.important = true
-      links.push({
-        source: branch.first,
-        target: branch.last,
-      })
-    }
-  });
+      if (prehistoric) {
+        links.push({
+          sourcehash: first.hash,
+          targethash: prehistoric.hash
+        });
+      }
+    });
 
-  for(let ref in graph.references){
-    console.log(graph.references[ref])
-    // nodeMap[ref].refs = graph.references[ref]
-    if (nodeMap[ref]){
-      nodeMap[ref].important = true
-      nodeMap[ref].refs = graph.references[ref]
+  for (let ref in graph.references) {
+    if (nodeMap[ref]) {
+      nodeMap[ref].important = true;
+      nodeMap[ref].refs = graph.references[ref];
     }
-    // nodeMap[ref].important = true
   }
-
-  last = {};
-  // graph
-  //   .sort((g1, g2) => {
-  //     return g1.timestamp - g2.timestamp;
-  //   })
-  //   .forEach(element => {
-  //     let x = ((element.timestamp - min) / (max - min)) * w;
-  //     count[element.branch] = count[element.branch] + 1;
-  //     // count++;
-
-  //     if (element.important) {
-  //       let node = {
-  //         hash: element.hash,
-  //         x: x,
-  //         y: getY(element.branch),
-  //         important: element.important,
-  //         branch: element.branch,
-  //         refs: element.references,
-  //         parents: element.parentHashes
-  //       };
-  //       nodes.push(node);
-  //       nodeMap[element.hash] = nodes.length - 1;
-  //       if (last[element.branch] != null) {
-  //         links.push({
-  //           source: nodes[nodes.length - 1],
-  //           target: nodes[last[element.branch]],
-  //           count: count[element.branch]
-  //         });
-  //       }
-  //       last[element.branch] = nodes.length - 1;
-  //       count[element.branch] = 0;
-  //     }
-  //   });
-  // graph.forEach(element => {
-  //   element.parentHashes.forEach(hash => {
-  //     if (
-  //       nodeMap[element.hash] != null &&
-  //       nodeMap[hash] != null &&
-  //       nodes[nodeMap[hash]].branch != element.branch
-  //     ) {
-  //       links.push({
-  //         source: nodes[nodeMap[element.hash]],
-  //         target: nodes[nodeMap[hash]],
-  //         count: 0
-  //       });
-  //     }
-  //   });
-  // });
 
   for (var key in branchYs) {
     key + branchYs[key];
@@ -210,31 +150,12 @@ function render(svg, graph) {
     .data(links)
     .enter();
   s.append("line")
-    .attr("x1", d => d.source.x)
-    .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
-    .attr("y2", d => d.target.y)
+    .attr("x1", d => nodeMap[d.sourcehash].x)
+    .attr("y1", d => nodeMap[d.sourcehash].y)
+    .attr("x2", d => nodeMap[d.targethash].x)
+    .attr("y2", d => nodeMap[d.targethash].y)
     .attr("class", "commitline")
-    .attr("stroke-dasharray", l => l.source.prehistoric || l.target.prehistoric ? 5 : 0)
-  s.filter(d => d.count > 0)
-    .append("svg:circle")
-    .attr("class", "squashlabel")
-    .attr("cx", d => (d.source.x + d.target.x) / 2)
-    .attr("cy", d => (d.source.y + d.target.y) / 2)
-    .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
-    .attr("r", 20)
-    .attr("fill", d => colormap[getPrecedence(d.source.branch)]);
-  s.filter(d => d.count > 0)
-    .append("text")
-    .attr("x", d => (d.source.x + d.target.x) / 2)
-    .attr("y", d => (d.source.y + d.target.y) / 2)
-    .attr("display", d => (d.source.x - d.target.x < 40 ? "none" : "block"))
-    .text(d => d.count)
-    .attr("font-family", '"Lucida Console", Monaco, monospace')
-    .attr("font-size", "16px")
-    .attr("class", "squashlabeltext")
-    .attr("text-anchor", "middle")
-    .attr("alignment-baseline", "middle");
+    .attr("stroke-dasharray", d => (nodeMap[d.targethash].prehistoric ? 5 : 0));
 
   let cNodes = svg
     .append("g")
@@ -246,8 +167,8 @@ function render(svg, graph) {
 
   cNodes
     .append("svg:circle")
-    .attr("r", n => n.important && !n.prehistoric ? 6 : 0)
-    .attr("fill", "white")
+    .attr("r", n => (n.important && !n.prehistoric ? 6 : 0))
+    .attr("fill", "white");
 
   taggs = cNodes
     .filter(d => {
