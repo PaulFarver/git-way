@@ -18,15 +18,15 @@ client.get("graph.json", function(response) {
   render(svg, JSON.parse(response));
 });
 
-function removePrefix(branch){
-  if (branch.startsWith("origin/")){
-    branch = branch.substr(7)
+function removePrefix(branch) {
+  if (branch.startsWith("origin/")) {
+    branch = branch.substr(7);
   }
-  if (branch.startsWith("hotfix/")){
-    branch = branch.substr(7)
+  if (branch.startsWith("hotfix/")) {
+    branch = branch.substr(7);
   }
-  if (branch.startsWith("feature/")){
-    branch = branch.substr(8)
+  if (branch.startsWith("feature/")) {
+    branch = branch.substr(8);
   }
   return branch;
 }
@@ -56,8 +56,30 @@ colormap = {
 };
 
 branchYs = {};
-curry = 50;
-diff = 30;
+diff = 50;
+curry = diff / 2;
+
+function elapsed(timestamp) {
+  now = Date.now() / 1000;
+  let seconds = Math.floor(now - timestamp)
+  let weeks = Math.floor(seconds / 604800)
+  if (weeks >= 2){
+    return weeks + "weeks ago"
+  }
+  let days = Math.floor(seconds / 86400)
+  if (days >= 2){
+    return days + " days ago"
+  }
+  let hours = Math.floor(seconds / 3600)
+  if (hours >= 2){
+    return hours + " hours ago"
+  }
+  let minutes = Math.floor(seconds / 60)
+  if (minutes >= 2){
+    return minutes + " minutes ago"
+  }
+  return "Just now"
+}
 
 function getY(branch) {
   if (branchYs[branch] == null) {
@@ -74,8 +96,10 @@ function getX(timestamp) {
 }
 
 function render(svg, graph) {
-  var w = Number(svg.attr("width"));
-  var h = Number(svg.attr("height"));
+  // var w = Number(svg.attr("width"));
+  // var h = Number(svg.attr("height"));
+  var w = 1800;
+  var h = 1000;
   var padding = 0;
   svg.attr(
     "viewBox",
@@ -92,11 +116,12 @@ function render(svg, graph) {
     .sort((b1, b2) => b2.lastcommit - b1.lastcommit)
     .sort((b1, b2) => b1.priority - b2.priority)
     .forEach(branch => {
-      let first, last, prehistoric;
+      let first, last, prehistoric, count = 0;
       if (branch.lastcommit < min) {
         return;
       }
       for (let hash in branch.nodes) {
+        count++;
         let commit = branch.nodes[hash];
         node = {
           hash: hash,
@@ -104,7 +129,9 @@ function render(svg, graph) {
           y: getY(branch.name),
           important: false,
           refs: [],
-          prehistoric: commit.timestamp < min
+          prehistoric: commit.timestamp < min,
+          count: 0,
+          branch: branch.name
         };
         if (node.prehistoric) {
           prehistoric = node;
@@ -126,6 +153,7 @@ function render(svg, graph) {
       }
       first.important = true;
       last.important = true;
+      last.count = count;
       links.push({
         sourcehash: last.hash,
         targethash: first.hash
@@ -145,9 +173,8 @@ function render(svg, graph) {
     }
   }
 
-  for (var key in branchYs) {
-    key + branchYs[key];
-    let c;
+  graph.branches.forEach(branch => {
+    key = branch.name;
     svg
       .append("rect")
       .attr("y", branchYs[key] - diff / 2)
@@ -155,19 +182,19 @@ function render(svg, graph) {
       .attr("height", diff)
       .attr("width", w)
       .attr("fill", getColor(key));
-    svg
+    g = svg
       .append("g")
       .attr("width", 100)
       .attr("y", branchYs[key] - diff / 2)
-      .attr("x", w - 100)
-      .append("foreignObject")
-      .attr("x", w-200)
+      .attr("x", w - 100);
+    g.append("foreignObject")
+      .attr("x", w - 200)
       .attr("y", branchYs[key] - diff / 2)
       .attr("width", 200)
-      .attr("height", diff)
+      .attr("height", diff / 2)
       .append("xhtml:body")
-      .style("font", '14px Verdana, Geneva, sans-serif')
-      .style("line-height", diff+"px")
+      .style("font", "14px Verdana, Geneva, sans-serif")
+      .style("line-height", diff / 2 + "px")
       .style("vertical-align", "middle")
       .style("text-overflow", "ellipsis")
       .style("text-align", "right")
@@ -176,7 +203,20 @@ function render(svg, graph) {
       .style("color", "white")
       .style("margin", "auto 10px")
       .html(removePrefix(key));
-  }
+      g.append("foreignObject")
+      .attr("x", w - 200)
+      .attr("y", branchYs[key])
+      .attr("width", 200)
+      .attr("height", diff / 2)
+      .append("xhtml:body")
+      .style("line-height", diff / 2 + "px")
+      .style("font", "14px Verdana, Geneva, sans-serif")
+      .style("vertical-align", "middle")
+      .style("margin", "auto 10px")
+      .style("color", "rgba(255,255,255,0.4)")
+      .style("text-align", "right")
+      .html(elapsed(branch.lastcommit));
+  });
 
   s = svg
     .selectAll(".line")
@@ -201,7 +241,10 @@ function render(svg, graph) {
   cNodes
     .append("svg:circle")
     .attr("r", n => (n.important && !n.prehistoric ? 6 : 0))
-    .attr("fill", "white");
+    .attr("fill", n => (n.important ? "white" : "black"))
+
+  
+  // cNodes
 
   taggs = cNodes
     .filter(d => {
