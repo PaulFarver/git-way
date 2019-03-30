@@ -18,6 +18,19 @@ client.get("graph.json", function(response) {
   render(svg, JSON.parse(response));
 });
 
+function removePrefix(branch){
+  if (branch.startsWith("origin/")){
+    branch = branch.substr(7)
+  }
+  if (branch.startsWith("hotfix/")){
+    branch = branch.substr(7)
+  }
+  if (branch.startsWith("feature/")){
+    branch = branch.substr(8)
+  }
+  return branch;
+}
+
 function getColor(branch) {
   if (branch == "origin/master") {
     return colormap[2];
@@ -135,21 +148,34 @@ function render(svg, graph) {
   for (var key in branchYs) {
     key + branchYs[key];
     let c;
-    svg.append("rect")
+    svg
+      .append("rect")
       .attr("y", branchYs[key] - diff / 2)
       .attr("x", 0)
       .attr("height", diff)
       .attr("width", w)
       .attr("fill", getColor(key));
-    svg.append("text")
-      .text(key.substr(7))
-      .attr("font-family", '"Lucida Console", Monaco, monospace')
-      .attr("font-size", "15px")
-      .attr("alignment-baseline", "middle")
-      .attr("y", branchYs[key])
-      .attr("x", w-10)
-      .attr("fill", "white")
-      .attr("text-anchor", "end")
+    svg
+      .append("g")
+      .attr("width", 100)
+      .attr("y", branchYs[key] - diff / 2)
+      .attr("x", w - 100)
+      .append("foreignObject")
+      .attr("x", w-200)
+      .attr("y", branchYs[key] - diff / 2)
+      .attr("width", 200)
+      .attr("height", diff)
+      .append("xhtml:body")
+      .style("font", '14px Verdana, Geneva, sans-serif')
+      .style("line-height", diff+"px")
+      .style("vertical-align", "middle")
+      .style("text-overflow", "ellipsis")
+      .style("text-align", "right")
+      .style("overflow", "hidden")
+      .style("white-space", "nowrap")
+      .style("color", "white")
+      .style("margin", "auto 10px")
+      .html(removePrefix(key));
   }
 
   s = svg
@@ -214,5 +240,4 @@ function render(svg, graph) {
     .attr("alignment-baseline", "middle")
     .attr("transform", "translate(15,1)")
     .attr("fill", "white");
-
 }
