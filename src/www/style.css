@@ -11,6 +11,14 @@
     stroke: white;
 }
 
+#graph {
+    margin: 0;
+}
+
+body {
+    margin: 0;
+}
+
 .commitline{
     stroke-width: 4px;
     stroke: white;

@@ -96,15 +96,8 @@ function getX(timestamp) {
 }
 
 function render(svg, graph) {
-  // var w = Number(svg.attr("width"));
-  // var h = Number(svg.attr("height"));
   var w = 1800;
-  var h = 1000;
   var padding = 0;
-  svg.attr(
-    "viewBox",
-    `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
-  );
 
   let min = graph.mintime;
   let max = graph.maxtime;
@@ -172,6 +165,12 @@ function render(svg, graph) {
       nodeMap[ref].refs = graph.references[ref];
     }
   }
+
+  var h = getY("final")-diff/2
+  svg.attr(
+    "viewBox",
+    `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
+  );
 
   graph.branches.forEach(branch => {
     key = branch.name;
