@@ -61,10 +61,9 @@ function getX(timestamp) {
 }
 
 function render(svg, graph) {
-  var w = 1800;
-  var h = 1000;
-  var padding = 60;
-  svg.attr("width", w).attr("height", h);
+  var w = Number(svg.attr("width"));
+  var h = Number(svg.attr("height"));
+  var padding = 0;
   svg.attr(
     "viewBox",
     `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
@@ -88,7 +87,7 @@ function render(svg, graph) {
         let commit = branch.nodes[hash];
         node = {
           hash: hash,
-          x: ((commit.timestamp - min) / (max - min)) * w,
+          x: ((commit.timestamp - min) / (max - min)) * (w - 250),
           y: getY(branch.name),
           important: false,
           refs: [],
@@ -136,13 +135,21 @@ function render(svg, graph) {
   for (var key in branchYs) {
     key + branchYs[key];
     let c;
-    svg
-      .append("rect")
+    svg.append("rect")
       .attr("y", branchYs[key] - diff / 2)
-      .attr("x", -125)
+      .attr("x", 0)
       .attr("height", diff)
-      .attr("width", w + 250)
+      .attr("width", w)
       .attr("fill", getColor(key));
+    svg.append("text")
+      .text(key.substr(7))
+      .attr("font-family", '"Lucida Console", Monaco, monospace')
+      .attr("font-size", "15px")
+      .attr("alignment-baseline", "middle")
+      .attr("y", branchYs[key])
+      .attr("x", w-10)
+      .attr("fill", "white")
+      .attr("text-anchor", "end")
   }
 
   s = svg
@@ -208,36 +215,4 @@ function render(svg, graph) {
     .attr("transform", "translate(15,1)")
     .attr("fill", "white");
 
-  branchgs = cNodes
-    .filter(d => {
-      let k = false;
-      d.refs.forEach(r => {
-        if (r.type == "branch") {
-          k = true;
-        }
-      });
-      return k;
-    })
-    .append("g")
-    .attr("x", 15)
-    .attr("y", 0)
-    .attr("transform", `translate(15,5)`);
-
-  branchgs
-    .append("text")
-    .text(d => {
-      let s = "";
-      d.refs.forEach(r => {
-        if (r.type == "branch") {
-          if (r.ref.startsWith("origin/")) {
-            s = r.ref.substr(7);
-          }
-        }
-      });
-      return s;
-    })
-    .attr("font-family", '"Lucida Console", Monaco, monospace')
-    .attr("font-size", "15px")
-    .attr("class", "branchlabel")
-    .attr("text-anchor", "start");
 }
