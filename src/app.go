@@ -21,10 +21,11 @@ type Graph struct {
 }
 
 type GraphBranch struct {
-	Name       string               `json:"name"`
-	Nodes      map[string]GraphNode `json:"nodes"`
-	LastCommit int64                `json:"lastcommit"`
-	Priority   int                  `json:"priority"`
+	Name          string               `json:"name"`
+	Nodes         map[string]GraphNode `json:"nodes"`
+	LastCommit    int64                `json:"lastcommit"`
+	LastCommitter string               `json:"lastcommitter"`
+	Priority      int                  `json:"priority"`
 }
 
 type GraphNode struct {
@@ -106,7 +107,7 @@ func main() {
 	refIter.ForEach(func(r *plumbing.Reference) error {
 		c, _ := repo.CommitObject(r.Hash())
 		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
-			branches[AssignPriority(r.Name())] = append(branches[AssignPriority(r.Name())], GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name())})
+			branches[AssignPriority(r.Name())] = append(branches[AssignPriority(r.Name())], GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name()), LastCommitter: c.Author.Name})
 			branchHeads[r.Name().Short()] = r.Hash()
 			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
 		}
