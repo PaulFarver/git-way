@@ -64,12 +64,21 @@ body {
     fill: none;
 }
 
-.squashlabel{
-    text-anchor: middle;
+.tag {
+    display: none;
+    fill: none;
+    transform: translate(15px,-5px) rotate(-15deg);
+    stroke-width: 2px;
+    stroke: white;
 }
 
-.squashlabeltext{
-    fill: white;
-    text-anchor: middle;
-    font-family: "Lucida Console", Monaco, monospace;
+.tagtext {
+    color: white;
+    font: 10px Verdana, Geneva, sans-serif;
+    vertical-align: middle;
+    text-overflow: ellipsis;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    margin: auto auto auto 12px;
 }

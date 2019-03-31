@@ -18,7 +18,7 @@ client.get("graph.json", function(response) {
   let a = performance.now();
   render(svg, JSON.parse(response));
   let b = performance.now();
-  console.log(`Graph took ${Math.round((b-a)*10)/10} ms to render.`);
+  console.log(`Graph took ${Math.round((b - a) * 10) / 10} ms to render.`);
 });
 
 function removePrefix(branch) {
@@ -39,7 +39,7 @@ function elapsed(timestamp) {
   let seconds = Math.floor(now - timestamp);
   let weeks = Math.floor(seconds / 604800);
   if (weeks >= 2) {
-    return weeks + "weeks ago";
+    return weeks + " weeks ago";
   }
   let days = Math.floor(seconds / 86400);
   if (days >= 2) {
@@ -202,7 +202,7 @@ function drawlines(svg, links) {
     .attr("prehistoric", d => d.target.prehistoric);
 }
 
-function drawnodes(svg, nodes) {
+function drawnodes(svg, nodes, references) {
   commitNodes = svg
     .append("g")
     .selectAll("g")
@@ -214,7 +214,32 @@ function drawnodes(svg, nodes) {
   commitNodes
     .append("svg:circle")
     .attr("class", "commitnode")
+    .attr("r", n => n.important ? 6 : 0)
     .attr("important", n => n.important);
+
+  tags = commitNodes
+    .filter(d => references[d.hash])
+    .append("g")
+    .selectAll("g")
+    .data(d => references[d.hash])
+    .enter()
+    .append("g")
+    .attr("class", "tag")
+    .attr("type", r => r.type)
+
+  tags
+    .append("path")
+    .attr("d", "M0 0 L10 -10 L60 -10 L60 10 L10 10 Z")
+    .attr("class", "tagshape")
+  
+  tags.append("foreignObject")
+    .attr("y", "-10")
+    .attr("height", 20)
+    .attr("width", 60)
+    .append("xhtml:body")
+    .style("line-height", "20px")
+    .attr("class", "tagtext")
+    .html(r => removePrefix(r.ref))
 }
 
 function render(svg, graph) {
@@ -235,5 +260,5 @@ function render(svg, graph) {
 
   drawlines(svg, links);
 
-  drawnodes(svg, nodes);
+  drawnodes(svg, nodes, graph.references);
 }
