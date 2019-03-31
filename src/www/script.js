@@ -18,7 +18,7 @@ client.get("graph.json", function(response) {
   let a = performance.now();
   render(svg, JSON.parse(response));
   let b = performance.now();
-  console.log("Rendering took " + (b - a) + " ms.");
+  console.log(`Graph took ${Math.round((b-a)*10)/10} ms to render.`);
 });
 
 function removePrefix(branch) {
@@ -33,30 +33,6 @@ function removePrefix(branch) {
   }
   return branch;
 }
-
-function getColor(branch) {
-  if (branch == "origin/master") {
-    return colormap[2];
-  }
-  if (branch == "origin/develop") {
-    return colormap[1];
-  }
-  if (branch.startsWith("origin/hotfix/")) {
-    return colormap[0];
-  }
-  if (branch.startsWith("origin/feature/")) {
-    return colormap[3];
-  }
-  return colormap[4];
-}
-
-colormap = {
-  0: "#2b303a",
-  1: "#3772ff",
-  2: "#f05033",
-  3: "#453f78",
-  4: "#759aab"
-};
 
 function elapsed(timestamp) {
   now = Date.now() / 1000;
@@ -81,7 +57,7 @@ function elapsed(timestamp) {
 }
 
 branchYs = {};
-diff = 50;
+diff = 60;
 curry = diff / 2;
 
 function getY(branch) {
@@ -102,19 +78,17 @@ function traverseGraph(branches, min, max, w) {
   let nodes = [];
   let nodeMap = {};
   let links = [];
-  function deferResolve(hash){
-    return function(){
+  function deferResolve(hash) {
+    return function() {
       nodeMap[hash].important = true;
       return nodeMap[hash];
-    }
+    };
   }
   branches
     .sort((b1, b2) => b2.lastcommit - b1.lastcommit)
     .sort((b1, b2) => b1.priority - b2.priority)
     .forEach(branch => {
-      let first,
-        last,
-        prehistoric
+      let first, last, prehistoric;
       if (branch.lastcommit < min) {
         return;
       }
@@ -126,7 +100,7 @@ function traverseGraph(branches, min, max, w) {
           y: getY(branch.name),
           important: false,
           refs: [],
-          prehistoric: commit.timestamp < min,
+          prehistoric: commit.timestamp < min
         };
         if (commit.timestamp < min) {
           prehistoric = hash;
@@ -157,94 +131,79 @@ function traverseGraph(branches, min, max, w) {
         });
       }
     });
-  links.forEach(l => {l.source = l.source(); l.target = l.target()})
+  links.forEach(l => {
+    l.source = l.source();
+    l.target = l.target();
+  });
   return {
     nodes: nodes,
     links: links
   };
 }
 
-function render(svg, graph) {
-  var w = 1800;
-  var padding = 0;
-
-  r = traverseGraph(graph.branches, graph.mintime, graph.maxtime, w);
-  let nodes = r.nodes;
-  let links = r.links;
-
-  // graph.
-
-  // for (let ref in graph.references) {
-  //   if (nodeMap[ref]) {
-  //     nodeMap[ref].important = true;
-  //     nodeMap[ref].refs = graph.references[ref];
-  //   }
-  // }
-
-  var h = getY("final") - diff / 2;
-  svg.attr(
-    "viewBox",
-    `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
-  );
-
-  graph.branches.forEach(branch => {
+function drawlanes(svg, branches, width) {
+  branches.forEach(branch => {
     key = branch.name;
-    svg
-      .append("rect")
-      .attr("y", branchYs[key] - diff / 2)
-      .attr("x", 0)
-      .attr("height", diff)
-      .attr("width", w)
-      .attr("fill", getColor(key));
+    let ydiff = diff - 6;
     g = svg
       .append("g")
-      .attr("width", 100)
+      .attr("width", width)
       .attr("y", branchYs[key] - diff / 2)
-      .attr("x", w - 100);
+      .attr("height", diff);
+    g.append("rect")
+      .attr("y", branchYs[key] - diff / 2)
+      .attr("x", 0)
+      .attr("class", "swimlane")
+      .attr("priority", branch.priority)
+      .attr("height", diff)
+      .attr("width", width);
     g.append("foreignObject")
-      .attr("x", w - 200)
-      .attr("y", branchYs[key] - diff / 2)
+      .attr("x", width - 200)
+      .attr("y", branchYs[key] - ydiff / 2)
       .attr("width", 200)
-      .attr("height", diff / 2)
+      .attr("height", ydiff / 3)
       .append("xhtml:body")
-      .style("font", "14px Verdana, Geneva, sans-serif")
-      .style("line-height", diff / 2 + "px")
-      .style("vertical-align", "middle")
-      .style("text-overflow", "ellipsis")
-      .style("text-align", "right")
-      .style("overflow", "hidden")
-      .style("white-space", "nowrap")
-      .style("color", "white")
-      .style("margin", "auto 10px")
+      .attr("class", "branchlabel branchname")
+      .style("line-height", ydiff / 3 + "px")
       .html(removePrefix(key));
     g.append("foreignObject")
-      .attr("x", w - 200)
-      .attr("y", branchYs[key])
+      .attr("x", width - 200)
+      .attr("y", branchYs[key] - ydiff / 2 + ydiff / 3)
       .attr("width", 200)
-      .attr("height", diff / 2)
+      .attr("height", ydiff / 3)
       .append("xhtml:body")
-      .style("line-height", diff / 2 + "px")
-      .style("font", "14px Verdana, Geneva, sans-serif")
-      .style("vertical-align", "middle")
-      .style("margin", "auto 10px")
-      .style("color", "rgba(255,255,255,0.4)")
-      .style("text-align", "right")
+      .attr("class", "branchlabel branchauthor")
+      .style("line-height", ydiff / 3 + "px")
+      .html(branch.lastcommitter);
+    g.append("foreignObject")
+      .attr("x", width - 200)
+      .attr("y", branchYs[key] - ydiff / 2 + (ydiff * 2) / 3)
+      .attr("width", 200)
+      .attr("height", ydiff / 3)
+      .append("xhtml:body")
+      .attr("class", "branchlabel branchtime")
+      .style("line-height", ydiff / 3 + "px")
       .html(elapsed(branch.lastcommit));
   });
+}
 
-  s = svg
-    .selectAll(".line")
+function drawlines(svg, links) {
+  svg
+    .append("g")
+    .selectAll("line")
     .data(links)
-    .enter();
-  s.append("line")
+    .enter()
+    .append("line")
     .attr("x1", d => d.source.x)
     .attr("y1", d => d.source.y)
     .attr("x2", d => d.target.x)
     .attr("y2", d => d.target.y)
     .attr("class", "commitline")
-    .attr("stroke-dasharray", d => (d.target.prehistoric ? 5 : 0));
+    .attr("prehistoric", d => d.target.prehistoric);
+}
 
-  let cNodes = svg
+function drawnodes(svg, nodes) {
+  commitNodes = svg
     .append("g")
     .selectAll("g")
     .data(nodes)
@@ -252,48 +211,29 @@ function render(svg, graph) {
     .append("g")
     .attr("transform", ({ x, y }) => `translate(${x}, ${y})`);
 
-  cNodes
+  commitNodes
     .append("svg:circle")
-    .attr("r", n => (n.important && !n.prehistoric ? 6 : 0))
-    .attr("fill", n => (n.important ? "white" : "black"));
+    .attr("class", "commitnode")
+    .attr("important", n => n.important);
+}
 
-  // cNodes
+function render(svg, graph) {
+  var width = 1800;
+  var padding = 0;
 
-  taggs = cNodes
-    .filter(d => {
-      let k = false;
-      d.refs.forEach(r => {
-        if (r.type == "tag") {
-          k = true;
-        }
-      });
-      return k;
-    })
-    .append("g")
-    .attr("x", 15)
-    .attr("y", 1)
-    .attr("transform", `rotate(-60) translate(10,0)`);
+  result = traverseGraph(graph.branches, graph.mintime, graph.maxtime, width);
+  let nodes = result.nodes;
+  let links = result.links;
 
-  taggs
-    .append("path")
-    .attr("d", "M0 0 L10 -10 L100 -10 L100 10 L10 10 Z")
-    .attr("fill", "grey");
-  taggs
-    .append("text")
-    .text(d => {
-      let s = "";
-      d.refs.forEach(r => {
-        if (r.type == "tag") {
-          s = r.ref;
-        }
-      });
-      return s;
-    })
-    .attr("font-family", '"Lucida Console", Monaco, monospace')
-    .attr("font-size", "15px")
-    .attr("class", "taglabel")
-    .attr("text-anchor", "start")
-    .attr("alignment-baseline", "middle")
-    .attr("transform", "translate(15,1)")
-    .attr("fill", "white");
+  var height = getY("final") - diff / 2;
+  svg.attr(
+    "viewBox",
+    `-${padding} -${padding} ${width + padding * 2} ${height + padding * 2}`
+  );
+
+  drawlanes(svg, graph.branches, width);
+
+  drawlines(svg, links);
+
+  drawnodes(svg, nodes);
 }

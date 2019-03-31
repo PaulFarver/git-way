@@ -3,14 +3,6 @@
     text-anchor: start
 }
 
-.commitnode {
-    stroke-width: 4px;
-}
-
-.importantcommit {
-    stroke: white;
-}
-
 #graph {
     margin: 0;
 }
@@ -19,16 +11,59 @@ body {
     margin: 0;
 }
 
+.swimlane[priority="0"]{
+    fill: #f05033;
+}
+.swimlane[priority="1"]{
+    fill: #2b303a;
+}
+.swimlane[priority="2"]{
+    fill: #3772ff;
+}
+.swimlane[priority="3"]{
+    fill: #453f78;
+}
+.swimlane[priority="4"]{
+    fill: #759aab;
+}
+
+.branchlabel{
+    color: white;
+    font: 14px Verdana, Geneva, sans-serif;
+    vertical-align: top;
+    text-overflow: ellipsis;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    margin: auto 10px;
+}
+
+.branchtime{
+    color: rgba(255, 255, 255, 0.5);
+}
+.branchauthor{
+    color: rgba(255, 255, 255, 0.5);
+}
+
 .commitline{
     stroke-width: 4px;
     stroke: white;
 }
 
-/* .squashlabel::before{
-    background: black;
-    width: 10px;
-    height: 10px;
-} */
+.commitline[prehistoric="true"]{
+    stroke-dasharray: 5;
+}
+
+.commitnode{
+    r: 6;
+}
+.commitnode[important="true"] {
+    fill: white;
+}
+.commitnode[important="false"] {
+    fill: none;
+}
+
 .squashlabel{
     text-anchor: middle;
 }
@@ -37,12 +72,4 @@ body {
     fill: white;
     text-anchor: middle;
     font-family: "Lucida Console", Monaco, monospace;
-}
-
-.taglabel {
-
-}
-
-.branchlabel {
-    fill: white;
 }
