@@ -15,7 +15,10 @@ var svg = d3.select("#graph");
 
 var client = new HttpClient();
 client.get("graph.json", function(response) {
+  let a = performance.now();
   render(svg, JSON.parse(response));
+  let b = performance.now();
+  console.log("Rendering took " + (b - a) + " ms.");
 });
 
 function removePrefix(branch) {
@@ -55,31 +58,31 @@ colormap = {
   4: "#759aab"
 };
 
+function elapsed(timestamp) {
+  now = Date.now() / 1000;
+  let seconds = Math.floor(now - timestamp);
+  let weeks = Math.floor(seconds / 604800);
+  if (weeks >= 2) {
+    return weeks + "weeks ago";
+  }
+  let days = Math.floor(seconds / 86400);
+  if (days >= 2) {
+    return days + " days ago";
+  }
+  let hours = Math.floor(seconds / 3600);
+  if (hours >= 2) {
+    return hours + " hours ago";
+  }
+  let minutes = Math.floor(seconds / 60);
+  if (minutes >= 2) {
+    return minutes + " minutes ago";
+  }
+  return "Just now";
+}
+
 branchYs = {};
 diff = 50;
 curry = diff / 2;
-
-function elapsed(timestamp) {
-  now = Date.now() / 1000;
-  let seconds = Math.floor(now - timestamp)
-  let weeks = Math.floor(seconds / 604800)
-  if (weeks >= 2){
-    return weeks + "weeks ago"
-  }
-  let days = Math.floor(seconds / 86400)
-  if (days >= 2){
-    return days + " days ago"
-  }
-  let hours = Math.floor(seconds / 3600)
-  if (hours >= 2){
-    return hours + " hours ago"
-  }
-  let minutes = Math.floor(seconds / 60)
-  if (minutes >= 2){
-    return minutes + " minutes ago"
-  }
-  return "Just now"
-}
 
 function getY(branch) {
   if (branchYs[branch] == null) {
@@ -95,26 +98,27 @@ function getX(timestamp) {
   };
 }
 
-function render(svg, graph) {
-  var w = 1800;
-  var padding = 0;
-
-  let min = graph.mintime;
-  let max = graph.maxtime;
+function traverseGraph(branches, min, max, w) {
   let nodes = [];
   let nodeMap = {};
   let links = [];
-
-  graph.branches
+  function deferResolve(hash){
+    return function(){
+      nodeMap[hash].important = true;
+      return nodeMap[hash];
+    }
+  }
+  branches
     .sort((b1, b2) => b2.lastcommit - b1.lastcommit)
     .sort((b1, b2) => b1.priority - b2.priority)
     .forEach(branch => {
-      let first, last, prehistoric, count = 0;
+      let first,
+        last,
+        prehistoric
       if (branch.lastcommit < min) {
         return;
       }
       for (let hash in branch.nodes) {
-        count++;
         let commit = branch.nodes[hash];
         node = {
           hash: hash,
@@ -123,11 +127,9 @@ function render(svg, graph) {
           important: false,
           refs: [],
           prehistoric: commit.timestamp < min,
-          count: 0,
-          branch: branch.name
         };
-        if (node.prehistoric) {
-          prehistoric = node;
+        if (commit.timestamp < min) {
+          prehistoric = hash;
         } else {
           first = !first || node.x < first.x ? node : first;
           last = !last || node.x > last.x ? node : last;
@@ -138,35 +140,48 @@ function render(svg, graph) {
           if (!branch.nodes[parent]) {
             node.important = true;
             links.push({
-              sourcehash: hash,
-              targethash: parent
+              source: deferResolve(hash),
+              target: deferResolve(parent)
             });
           }
         });
       }
-      first.important = true;
-      last.important = true;
-      last.count = count;
       links.push({
-        sourcehash: last.hash,
-        targethash: first.hash
+        source: deferResolve(last.hash),
+        target: deferResolve(first.hash)
       });
       if (prehistoric) {
         links.push({
-          sourcehash: first.hash,
-          targethash: prehistoric.hash
+          source: deferResolve(first.hash),
+          target: deferResolve(prehistoric)
         });
       }
     });
+  links.forEach(l => {l.source = l.source(); l.target = l.target()})
+  return {
+    nodes: nodes,
+    links: links
+  };
+}
 
-  for (let ref in graph.references) {
-    if (nodeMap[ref]) {
-      nodeMap[ref].important = true;
-      nodeMap[ref].refs = graph.references[ref];
-    }
-  }
+function render(svg, graph) {
+  var w = 1800;
+  var padding = 0;
 
-  var h = getY("final")-diff/2
+  r = traverseGraph(graph.branches, graph.mintime, graph.maxtime, w);
+  let nodes = r.nodes;
+  let links = r.links;
+
+  // graph.
+
+  // for (let ref in graph.references) {
+  //   if (nodeMap[ref]) {
+  //     nodeMap[ref].important = true;
+  //     nodeMap[ref].refs = graph.references[ref];
+  //   }
+  // }
+
+  var h = getY("final") - diff / 2;
   svg.attr(
     "viewBox",
     `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`
@@ -202,7 +217,7 @@ function render(svg, graph) {
       .style("color", "white")
       .style("margin", "auto 10px")
       .html(removePrefix(key));
-      g.append("foreignObject")
+    g.append("foreignObject")
       .attr("x", w - 200)
       .attr("y", branchYs[key])
       .attr("width", 200)
@@ -222,12 +237,12 @@ function render(svg, graph) {
     .data(links)
     .enter();
   s.append("line")
-    .attr("x1", d => nodeMap[d.sourcehash].x)
-    .attr("y1", d => nodeMap[d.sourcehash].y)
-    .attr("x2", d => nodeMap[d.targethash].x)
-    .attr("y2", d => nodeMap[d.targethash].y)
+    .attr("x1", d => d.source.x)
+    .attr("y1", d => d.source.y)
+    .attr("x2", d => d.target.x)
+    .attr("y2", d => d.target.y)
     .attr("class", "commitline")
-    .attr("stroke-dasharray", d => (nodeMap[d.targethash].prehistoric ? 5 : 0));
+    .attr("stroke-dasharray", d => (d.target.prehistoric ? 5 : 0));
 
   let cNodes = svg
     .append("g")
@@ -240,9 +255,8 @@ function render(svg, graph) {
   cNodes
     .append("svg:circle")
     .attr("r", n => (n.important && !n.prehistoric ? 6 : 0))
-    .attr("fill", n => (n.important ? "white" : "black"))
+    .attr("fill", n => (n.important ? "white" : "black"));
 
-  
   // cNodes
 
   taggs = cNodes
