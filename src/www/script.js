@@ -31,6 +31,9 @@ function removePrefix(branch) {
   if (branch.startsWith("feature/")) {
     branch = branch.substr(8);
   }
+  if (branch.startsWith("release/")) {
+    branch = branch.substr(8);
+  }
   return branch;
 }
 
