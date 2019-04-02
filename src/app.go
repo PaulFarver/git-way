@@ -40,7 +40,7 @@ type CommitRef struct {
 }
 
 var currentTime = time.Now()
-var checktime = getCheckTime(currentTime, "178h")
+var checktime = getCheckTime(currentTime, "250h")
 
 func check(err error) {
 	if err != nil {
@@ -121,7 +121,7 @@ func main() {
 	excluded := make(map[string]bool)
 
 	sort.Slice(branches, func(i, j int) bool {
-		return branches[i].Priority > branches[i].Priority || branches[i].Priority == branches[i].Priority && branches[i].LastCommit > branches[j].LastCommit
+		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
 	})
 	for _, branch := range branches {
 		fmt.Println("Walking branch: " + branch.Name)
