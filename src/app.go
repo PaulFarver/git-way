@@ -13,6 +13,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
+// Graph is the root element containing all graph data
 type Graph struct {
 	Branches   []GraphBranch          `json:"branches"`
 	References map[string][]CommitRef `json:"references"`
@@ -20,6 +21,7 @@ type Graph struct {
 	Mintime    int64                  `json:"mintime"`
 }
 
+// GraphBranch is an element representing git branch
 type GraphBranch struct {
 	Name          string               `json:"name"`
 	Nodes         map[string]GraphNode `json:"nodes"`
@@ -28,18 +30,17 @@ type GraphBranch struct {
 	Priority      int                  `json:"priority"`
 }
 
+// GraphNode is a struct containing information about a commit
 type GraphNode struct {
 	Parents   []string `json:"parentHashes"`
 	Timestamp int64    `json:"timestamp"`
 }
 
+// CommitRef is a struct containing information about a git reference
 type CommitRef struct {
 	Ref  string `json:"ref"`
 	Type string `json:"type"`
 }
-
-var currentTime = time.Now()
-var checktime = getCheckTime(currentTime, "250h")
 
 func check(err error) {
 	if err != nil {
@@ -77,7 +78,7 @@ var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
 var releaseregex = regexp.MustCompile(`release\/(.+)`)
 var featureregex = regexp.MustCompile(`feature\/(.+)`)
 
-func AssignPriority(branch plumbing.ReferenceName) int {
+func assignPriority(branch plumbing.ReferenceName) int {
 	if branch.Short() == "master" || branch.Short() == "origin/master" {
 		return 0
 	}
@@ -96,12 +97,27 @@ func AssignPriority(branch plumbing.ReferenceName) int {
 	return 5
 }
 
-func GetGraph(w http.ResponseWriter, r *http.Request) {
-	repo := ensureRepo()
+func walkCommit(commit *object.Commit, after time.Time, nodes map[string]GraphNode, parsed map[string]bool) (map[string]GraphNode, map[string]bool) {
+	if _, ok := parsed[commit.Hash.String()]; ok {
+		return nodes, parsed
+	}
+	parentHashes := []string{}
+	if !commit.Committer.When.Before(after) {
+		commit.Parents().ForEach(func(parent *object.Commit) error {
+			nodes, parsed = walkCommit(parent, after, nodes, parsed)
+			parentHashes = append(parentHashes, parent.Hash.String())
+			return nil
+		})
+		parsed[commit.Hash.String()] = true
+	}
+	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
+	return nodes, parsed
+}
 
+func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 	branches := []GraphBranch{}
 	branchHeads := make(map[string]plumbing.Hash)
-	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: currentTime.Unix(), Mintime: checktime.Unix()}
+	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: current.Unix(), Mintime: after.Unix()}
 
 	// Discover branches
 	refIter, err := repo.References()
@@ -109,7 +125,7 @@ func GetGraph(w http.ResponseWriter, r *http.Request) {
 	refIter.ForEach(func(r *plumbing.Reference) error {
 		c, _ := repo.CommitObject(r.Hash())
 		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
-			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name()), LastCommitter: c.Author.Name})
+			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: assignPriority(r.Name()), LastCommitter: c.Author.Name})
 			branchHeads[r.Name().Short()] = r.Hash()
 			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
 		}
@@ -126,35 +142,28 @@ func GetGraph(w http.ResponseWriter, r *http.Request) {
 	})
 	for _, branch := range branches {
 		c, _ := repo.CommitObject(branchHeads[branch.Name])
-		branch.Nodes, excluded = WalkCommit(c, make(map[string]GraphNode), excluded)
+		branch.Nodes, excluded = walkCommit(c, after, make(map[string]GraphNode), excluded)
 		graph.Branches = append(graph.Branches, branch)
 	}
 
 	// Write to file
 	b, err := json.Marshal(graph)
 	check(err)
-	w.Write(b)
+	return b
 }
 
-func WalkCommit(commit *object.Commit, nodes map[string]GraphNode, parsed map[string]bool) (map[string]GraphNode, map[string]bool) {
-	if _, ok := parsed[commit.Hash.String()]; ok {
-		return nodes, parsed
+func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		after := getCheckTime(now, "250h")
+		b := buildGraph(repo, now, after)
+		w.Write(b)
 	}
-	parentHashes := []string{}
-	if !commit.Committer.When.Before(checktime) {
-		commit.Parents().ForEach(func(parent *object.Commit) error {
-			nodes, parsed = WalkCommit(parent, nodes, parsed)
-			parentHashes = append(parentHashes, parent.Hash.String())
-			return nil
-		})
-		parsed[commit.Hash.String()] = true
-	}
-	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
-	return nodes, parsed
 }
 
 func main() {
+	repo := ensureRepo()
 	http.Handle("/", http.FileServer(http.Dir("www/")))
-	http.HandleFunc("/api/graph", GetGraph)
+	http.HandleFunc("/api/graph", generateGraphHandler(repo))
 	http.ListenAndServe(":8080", nil)
 }
