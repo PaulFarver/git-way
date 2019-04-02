@@ -84,6 +84,9 @@ function traverseGraph(branches, min, max, w) {
       return nodeMap[hash];
     };
   }
+
+  getY("origin/master")
+
   branches
     .sort((b1, b2) => b2.lastcommit - b1.lastcommit)
     .sort((b1, b2) => b1.priority - b2.priority)
@@ -104,12 +107,15 @@ function traverseGraph(branches, min, max, w) {
         };
         if (commit.timestamp < min) {
           prehistoric = hash;
+          node.x = -20;
         } else {
           first = !first || node.x < first.x ? node : first;
           last = !last || node.x > last.x ? node : last;
         }
         nodes.push(node);
-        nodeMap[hash] = node;
+        if (!nodeMap[hash]) {
+          nodeMap[hash] = node;
+        }
         commit.parentHashes.forEach(parent => {
           if (!branch.nodes[parent]) {
             node.important = true;
@@ -120,10 +126,12 @@ function traverseGraph(branches, min, max, w) {
           }
         });
       }
-      links.push({
-        source: deferResolve(last.hash),
-        target: deferResolve(first.hash)
-      });
+      if (last) {
+        links.push({
+          source: deferResolve(last.hash),
+          target: deferResolve(first.hash)
+        });
+      }
       if (prehistoric) {
         links.push({
           source: deferResolve(first.hash),
@@ -141,8 +149,12 @@ function traverseGraph(branches, min, max, w) {
   };
 }
 
-function drawlanes(svg, branches, width) {
+function drawlanes(svg, branches, width, min) {
   branches.forEach(branch => {
+    if (branch.name != "origin/master" && (branch.lastcommit < min || Object.keys(branch.nodes).length == 0)) {
+      // console.log("throwing away " + branch.name);
+      return;
+    }
     key = branch.name;
     let ydiff = diff - 6;
     g = svg
@@ -214,7 +226,7 @@ function drawnodes(svg, nodes, references) {
   commitNodes
     .append("svg:circle")
     .attr("class", "commitnode")
-    .attr("r", n => n.important ? 6 : 0)
+    .attr("r", n => (n.important ? 6 : 0))
     .attr("important", n => n.important);
 
   tags = commitNodes
@@ -225,21 +237,22 @@ function drawnodes(svg, nodes, references) {
     .enter()
     .append("g")
     .attr("class", "tag")
-    .attr("type", r => r.type)
+    .attr("type", r => r.type);
 
   tags
     .append("path")
     .attr("d", "M0 0 L10 -10 L60 -10 L60 10 L10 10 Z")
-    .attr("class", "tagshape")
-  
-  tags.append("foreignObject")
+    .attr("class", "tagshape");
+
+  tags
+    .append("foreignObject")
     .attr("y", "-10")
     .attr("height", 20)
     .attr("width", 60)
     .append("xhtml:body")
     .style("line-height", "20px")
     .attr("class", "tagtext")
-    .html(r => removePrefix(r.ref))
+    .html(r => removePrefix(r.ref));
 }
 
 function render(svg, graph) {
@@ -256,7 +269,7 @@ function render(svg, graph) {
     `-${padding} -${padding} ${width + padding * 2} ${height + padding * 2}`
   );
 
-  drawlanes(svg, graph.branches, width);
+  drawlanes(svg, graph.branches, width, graph.mintime);
 
   drawlines(svg, links);
 
