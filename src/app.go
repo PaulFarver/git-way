@@ -75,22 +75,26 @@ func getCheckTime(currTime time.Time, duration string) time.Time {
 }
 
 var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
+var releaseregex = regexp.MustCompile(`release\/(.+)`)
 var featureregex = regexp.MustCompile(`feature\/(.+)`)
 
 func AssignPriority(branch plumbing.ReferenceName) int {
-	if featureregex.Match([]byte(branch)) {
-		return 3
+	if branch.Short() == "master" || branch.Short() == "origin/master" {
+		return 0
 	}
 	if hotfixregex.Match([]byte(branch)) {
 		return 1
 	}
-	if branch.Short() == "master" || branch.Short() == "origin/master" {
-		return 0
-	}
-	if branch.Short() == "develop" || branch.Short() == "origin/develop" {
+	if releaseregex.Match([]byte(branch)) {
 		return 2
 	}
-	return 4
+	if branch.Short() == "develop" || branch.Short() == "origin/develop" {
+		return 3
+	}
+	if featureregex.Match([]byte(branch)) {
+		return 4
+	}
+	return 5
 }
 
 func main() {
