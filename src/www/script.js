@@ -104,16 +104,16 @@ function render(svg, graph) {
 
       if (element.important) {
         let node = {
-          id: element.id,
+          hash: element.hash,
           x: x,
           y: getY(element.branch),
           important: element.important,
           branch: element.branch,
           refs: element.references,
-          parents: element.parentIds
+          parents: element.parentHashes
         };
         nodes.push(node);
-        nodeMap[element.id] = nodes.length - 1;
+        nodeMap[element.hash] = nodes.length - 1;
         if (last[element.branch] != null) {
           links.push({
             source: nodes[nodes.length - 1],
@@ -126,15 +126,15 @@ function render(svg, graph) {
       }
     });
   graph.forEach(element => {
-    element.parentIds.forEach(id => {
+    element.parentHashes.forEach(hash => {
       if (
-        nodeMap[element.id] != null &&
-        nodeMap[id] != null &&
-        nodes[nodeMap[id]].branch != element.branch
+        nodeMap[element.hash] != null &&
+        nodeMap[hash] != null &&
+        nodes[nodeMap[hash]].branch != element.branch
       ) {
         links.push({
-          source: nodes[nodeMap[element.id]],
-          target: nodes[nodeMap[id]],
+          source: nodes[nodeMap[element.hash]],
+          target: nodes[nodeMap[hash]],
           count: 0
         });
       }

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"time"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -13,21 +14,33 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
+type Graph struct {
+	Branches   []GraphBranch          `json:"branches"`
+	References map[string][]CommitRef `json:"references"`
+	Maxtime    int64                  `json:"maxtime"`
+	Mintime    int64                  `json:"mintime"`
+}
+
+type GraphBranch struct {
+	Name          string               `json:"name"`
+	Nodes         map[string]GraphNode `json:"nodes"`
+	LastCommit    int64                `json:"lastcommit"`
+	LastCommitter string               `json:"lastcommitter"`
+	Priority      int                  `json:"priority"`
+}
+
 type GraphNode struct {
-	Hash       string      `json:"id"`
-	Title      string      `json:"title"`
-	Branch     string      `json:"branch"`
-	Amount     int         `json:"amount"`
-	Parents    []string    `json:"parentIds"`
-	Timestamp  int64       `json:"timestamp"`
-	Important  bool        `json:"important"`
-	References []CommitRef `json:"references"`
+	Parents   []string `json:"parentHashes"`
+	Timestamp int64    `json:"timestamp"`
 }
 
 type CommitRef struct {
 	Ref  string `json:"ref"`
 	Type string `json:"type"`
 }
+
+var currentTime = time.Now()
+var checktime = getCheckTime(currentTime, "250h")
 
 func check(err error) {
 	if err != nil {
@@ -55,117 +68,10 @@ func ensureRepo() *git.Repository {
 	return repo
 }
 
-func getCommits(repo *git.Repository) object.CommitIter {
-	commits, err := repo.CommitObjects()
-	check(err)
-	return commits
-}
-
 func getCheckTime(currTime time.Time, duration string) time.Time {
 	dur, err := time.ParseDuration(duration)
 	check(err)
 	return currTime.Add(-dur)
-}
-
-func main() {
-	fmt.Println("Checking out...")
-	repo := ensureRepo()
-	checktime := getCheckTime(time.Now(), "1000h")
-
-	// Discover branches
-	branchKeys := [][]string{[]string{}, []string{}, []string{}, []string{}, []string{}, []string{}}
-	branches := make(map[string]plumbing.Hash)
-	references := make(map[plumbing.ReferenceName]plumbing.Hash)
-	fmt.Println("Discovering remote branches...")
-	refIter, err := repo.References()
-	check(err)
-	refIter.ForEach(func(r *plumbing.Reference) error {
-		if r.Name().IsRemote() {
-			branches[r.Name().Short()] = r.Hash()
-			branchKeys[AssignPriority(r.Name())] = append(branchKeys[AssignPriority(r.Name())], r.Name().Short())
-		}
-		if r.Name().IsRemote() || r.Name().IsTag() {
-			references[r.Name()] = r.Hash()
-		}
-		return nil
-	})
-
-	// Collect commits
-	graphs := []GraphNode{}
-	commits := make(map[plumbing.Hash]GraphNode)
-	for _, pBranches := range branchKeys {
-		for _, name := range pBranches {
-			fmt.Println("Walking branch: " + name)
-			hash := branches[name]
-			c, _ := repo.CommitObject(hash)
-			commits, _, _ = WalkCommit(c, commits, checktime, GraphNode{Branch: name, References: []CommitRef{}})
-			fmt.Printf("found %v commits\n", len(commits))
-		}
-	}
-
-	// Assign references
-	for k, v := range references {
-		if c, ok := commits[v]; ok {
-			fmt.Println("Assigning " + k.Short())
-			t := "branch"
-			c.Important = true
-			if k.IsTag() {
-				t = "tag"
-			}
-			c.References = append(c.References, CommitRef{Type: t, Ref: k.Short()})
-			commits[v] = c
-		}
-	}
-
-	// Collect graphs
-	for _, v := range commits {
-		graphs = append(graphs, v)
-	}
-
-	// Write to file
-	b, err := json.Marshal(graphs)
-	check(err)
-	err = ioutil.WriteFile("www/graph.json", b, 0644)
-	check(err)
-}
-
-func WalkCommit(commit *object.Commit, commits map[plumbing.Hash]GraphNode, checktime time.Time, template GraphNode) (map[plumbing.Hash]GraphNode, bool, bool) {
-	// Check if commit has been parsed before
-	if commit.Committer.When.Before(checktime) {
-		return commits, false, true
-	}
-	if i, ok := commits[commit.Hash]; ok && i.Branch != template.Branch {
-		i.Important = true
-		commits[commit.Hash] = i
-		return commits, true, true
-	}
-	if _, ok := commits[commit.Hash]; ok {
-		return commits, true, false
-	}
-	// graphs := []GraphNode{}
-	parentIds := []string{}
-	becomeImportant := false
-	// Parse parents
-	if commit.NumParents() == 0 {
-		becomeImportant = true
-	}
-	commit.Parents().ForEach(func(parent *object.Commit) error {
-		ex, include, b := WalkCommit(parent, commits, checktime, template)
-		commits = ex
-		becomeImportant = b
-		// graphs = append(graphs, parentGraphs...)
-		if include {
-			parentIds = append(parentIds, parent.Hash.String())
-		}
-		return nil
-	})
-	g := template
-	g.Hash = commit.Hash.String()
-	g.Parents = parentIds
-	g.Timestamp = commit.Committer.When.Unix()
-	g.Important = becomeImportant
-	commits[commit.Hash] = g
-	return commits, true, false
 }
 
 var hotfixregex = regexp.MustCompile(`hotfix\/(.+)`)
@@ -185,4 +91,66 @@ func AssignPriority(branch plumbing.ReferenceName) int {
 		return 2
 	}
 	return 4
+}
+
+func main() {
+	fmt.Println("Checking out...")
+	repo := ensureRepo()
+
+	branches := []GraphBranch{}
+	branchHeads := make(map[string]plumbing.Hash)
+	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: currentTime.Unix(), Mintime: checktime.Unix()}
+
+	// Discover branches
+	fmt.Println("Discovering remote branches...")
+	refIter, err := repo.References()
+	check(err)
+	refIter.ForEach(func(r *plumbing.Reference) error {
+		c, _ := repo.CommitObject(r.Hash())
+		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
+			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name()), LastCommitter: c.Author.Name})
+			branchHeads[r.Name().Short()] = r.Hash()
+			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
+		}
+		if r.Name().IsTag() {
+			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "tag"})
+		}
+		return nil
+	})
+
+	excluded := make(map[string]bool)
+
+	sort.Slice(branches, func(i, j int) bool {
+		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
+	})
+	for _, branch := range branches {
+		fmt.Println("Walking branch: " + branch.Name)
+		c, _ := repo.CommitObject(branchHeads[branch.Name])
+		branch.Nodes, excluded = WalkCommit(c, make(map[string]GraphNode), excluded)
+		fmt.Printf("found %v commits\n", len(branch.Nodes))
+		graph.Branches = append(graph.Branches, branch)
+	}
+
+	// Write to file
+	b, err := json.Marshal(graph)
+	check(err)
+	err = ioutil.WriteFile("www/graph.json", b, 0644)
+	check(err)
+}
+
+func WalkCommit(commit *object.Commit, nodes map[string]GraphNode, parsed map[string]bool) (map[string]GraphNode, map[string]bool) {
+	if _, ok := parsed[commit.Hash.String()]; ok {
+		return nodes, parsed
+	}
+	parentHashes := []string{}
+	if !commit.Committer.When.Before(checktime) {
+		commit.Parents().ForEach(func(parent *object.Commit) error {
+			nodes, parsed = WalkCommit(parent, nodes, parsed)
+			parentHashes = append(parentHashes, parent.Hash.String())
+			return nil
+		})
+		parsed[commit.Hash.String()] = true
+	}
+	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
+	return nodes, parsed
 }
