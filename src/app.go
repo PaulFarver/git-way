@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"time"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -96,7 +97,7 @@ func main() {
 	fmt.Println("Checking out...")
 	repo := ensureRepo()
 
-	branches := [][]GraphBranch{[]GraphBranch{}, []GraphBranch{}, []GraphBranch{}, []GraphBranch{}, []GraphBranch{}}
+	branches := []GraphBranch{}
 	branchHeads := make(map[string]plumbing.Hash)
 	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: currentTime.Unix(), Mintime: checktime.Unix()}
 
@@ -107,7 +108,7 @@ func main() {
 	refIter.ForEach(func(r *plumbing.Reference) error {
 		c, _ := repo.CommitObject(r.Hash())
 		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
-			branches[AssignPriority(r.Name())] = append(branches[AssignPriority(r.Name())], GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name()), LastCommitter: c.Author.Name})
+			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: AssignPriority(r.Name()), LastCommitter: c.Author.Name})
 			branchHeads[r.Name().Short()] = r.Hash()
 			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
 		}
@@ -118,14 +119,16 @@ func main() {
 	})
 
 	excluded := make(map[string]bool)
-	for _, priority := range branches {
-		for _, branch := range priority {
-			fmt.Println("Walking branch: " + branch.Name)
-			c, _ := repo.CommitObject(branchHeads[branch.Name])
-			branch.Nodes, excluded = WalkCommit(c, make(map[string]GraphNode), excluded)
-			fmt.Printf("found %v commits\n", len(branch.Nodes))
-			graph.Branches = append(graph.Branches, branch)
-		}
+
+	sort.Slice(branches, func(i, j int) bool {
+		return branches[i].Priority > branches[i].Priority || branches[i].Priority == branches[i].Priority && branches[i].LastCommit > branches[j].LastCommit
+	})
+	for _, branch := range branches {
+		fmt.Println("Walking branch: " + branch.Name)
+		c, _ := repo.CommitObject(branchHeads[branch.Name])
+		branch.Nodes, excluded = WalkCommit(c, make(map[string]GraphNode), excluded)
+		fmt.Printf("found %v commits\n", len(branch.Nodes))
+		graph.Branches = append(graph.Branches, branch)
 	}
 
 	// Write to file
