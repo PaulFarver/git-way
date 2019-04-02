@@ -2,8 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -97,8 +96,7 @@ func AssignPriority(branch plumbing.ReferenceName) int {
 	return 5
 }
 
-func main() {
-	fmt.Println("Checking out...")
+func GetGraph(w http.ResponseWriter, r *http.Request) {
 	repo := ensureRepo()
 
 	branches := []GraphBranch{}
@@ -106,7 +104,6 @@ func main() {
 	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: currentTime.Unix(), Mintime: checktime.Unix()}
 
 	// Discover branches
-	fmt.Println("Discovering remote branches...")
 	refIter, err := repo.References()
 	check(err)
 	refIter.ForEach(func(r *plumbing.Reference) error {
@@ -128,18 +125,15 @@ func main() {
 		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
 	})
 	for _, branch := range branches {
-		fmt.Println("Walking branch: " + branch.Name)
 		c, _ := repo.CommitObject(branchHeads[branch.Name])
 		branch.Nodes, excluded = WalkCommit(c, make(map[string]GraphNode), excluded)
-		fmt.Printf("found %v commits\n", len(branch.Nodes))
 		graph.Branches = append(graph.Branches, branch)
 	}
 
 	// Write to file
 	b, err := json.Marshal(graph)
 	check(err)
-	err = ioutil.WriteFile("www/graph.json", b, 0644)
-	check(err)
+	w.Write(b)
 }
 
 func WalkCommit(commit *object.Commit, nodes map[string]GraphNode, parsed map[string]bool) (map[string]GraphNode, map[string]bool) {
@@ -157,4 +151,10 @@ func WalkCommit(commit *object.Commit, nodes map[string]GraphNode, parsed map[st
 	}
 	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
 	return nodes, parsed
+}
+
+func main() {
+	http.Handle("/", http.FileServer(http.Dir("www/")))
+	http.HandleFunc("/api/graph", GetGraph)
+	http.ListenAndServe(":8080", nil)
 }
