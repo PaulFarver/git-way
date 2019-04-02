@@ -12,19 +12,22 @@ body {
 }
 
 .swimlane[priority="0"]{
-    fill: #f05033;
+    fill: #c0392b;
 }
 .swimlane[priority="1"]{
-    fill: #2b303a;
+    fill: #8e44ad;
 }
 .swimlane[priority="2"]{
-    fill: #3772ff;
+    fill: #27ae60;
 }
 .swimlane[priority="3"]{
-    fill: #453f78;
+    fill: #f39c12;
 }
 .swimlane[priority="4"]{
-    fill: #759aab;
+    fill: #2980b9;
+}
+.swimlane[priority="5"]{
+    fill: #2c3e50;
 }
 
 .branchlabel{
