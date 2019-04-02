@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"time"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -152,12 +154,34 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 	return b
 }
 
+func parseTimestampOrDefault(str string, def time.Time) time.Time {
+	i, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return def
+	}
+	return time.Unix(i, 0)
+}
+
+func parseGraphQuery(q url.Values) (time.Time, time.Time) {
+	before := time.Now()
+	b, ok := q["before"]
+	if ok && len(b) > 0 {
+		before = parseTimestampOrDefault(b[0], before)
+	}
+	after := getCheckTime(before, "250h")
+	a, ok := q["after"]
+	if ok && len(a) > 0 {
+		after = parseTimestampOrDefault(a[0], after)
+	}
+	return before, after
+}
+
 func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		now := time.Now()
-		after := getCheckTime(now, "250h")
-		b := buildGraph(repo, now, after)
-		w.Write(b)
+		q := r.URL.Query()
+		before, after := parseGraphQuery(q)
+		bytes := buildGraph(repo, before, after)
+		w.Write(bytes)
 	}
 }
 
