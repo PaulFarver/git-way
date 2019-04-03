@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,7 +15,16 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	githttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
+	"gopkg.in/yaml.v3"
 )
+
+type Configuration struct {
+	Repository string `yaml:"repository"`
+	User       string `yaml:"user"`
+	Token      string `yaml:"token"`
+	Directory  string `yaml:"directory"`
+}
 
 // Graph is the root element containing all graph data
 type Graph struct {
@@ -50,23 +61,32 @@ func check(err error) {
 	}
 }
 
-func ensureRepo() *git.Repository {
-	repo, err := git.PlainOpen("../temp/go-git")
+func ensureRepo(path, url, user, token string) *git.Repository {
+	repo, err := git.PlainOpen(path)
 	if err != nil {
-		repo, err = git.PlainClone("../temp/go-git", false, &git.CloneOptions{
-			URL:      "https://github.com/src-d/go-git",
-			Progress: os.Stdout,
+		fmt.Println("Checking out repository")
+		repo, err = git.PlainClone(path, true, &git.CloneOptions{
+			URL:        url,
+			Progress:   os.Stdout,
+			NoCheckout: true,
+			Auth: &githttp.BasicAuth{
+				Username: user,
+				Password: token,
+			},
 		})
 	}
 	check(err)
+	fmt.Println("Fetching")
 	err = repo.Fetch(&git.FetchOptions{
+		Auth: &githttp.BasicAuth{
+			Username: user,
+			Password: token,
+		},
 		Progress: os.Stdout,
 	})
 	if err != git.NoErrAlreadyUpToDate {
 		check(err)
 	}
-	err = repo.Prune(git.PruneOptions{})
-	check(err)
 	return repo
 }
 
@@ -185,8 +205,19 @@ func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.
 	}
 }
 
+func GrabConfiguration(path string) Configuration {
+	bytes, err := ioutil.ReadFile(path)
+	check(err)
+	conf := Configuration{}
+	err = yaml.Unmarshal(bytes, &conf)
+	check(err)
+	return conf
+}
+
 func main() {
-	repo := ensureRepo()
+	filepath := os.Args[1]
+	conf := GrabConfiguration(filepath)
+	repo := ensureRepo(conf.Directory, conf.Repository, conf.User, conf.Token)
 	http.Handle("/", http.FileServer(http.Dir("www/")))
 	http.HandleFunc("/api/graph", generateGraphHandler(repo))
 	http.ListenAndServe(":8080", nil)
