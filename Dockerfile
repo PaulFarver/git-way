@@ -7,6 +7,7 @@ RUN go build app.go
 
 FROM alpine
 WORKDIR /git-way
+RUN apk add --update --no-cache ca-certificates
 COPY src/www www
 COPY --from=build /build/app app
 ENTRYPOINT [ "./app" ]
