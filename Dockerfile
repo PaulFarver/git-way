@@ -11,3 +11,4 @@ RUN apk add --update --no-cache ca-certificates
 COPY src/www www
 COPY --from=build /build/app app
 ENTRYPOINT [ "./app" ]
+CMD [ "configuration.yml" ]
