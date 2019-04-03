@@ -14,7 +14,7 @@ var HttpClient = function() {
 var svg = d3.select("#graph");
 
 var client = new HttpClient();
-client.get("graph.json", function(response) {
+client.get("/api/graph?" + window.location.search.substring(1), function(response) {
   let a = performance.now();
   render(svg, JSON.parse(response));
   let b = performance.now();
