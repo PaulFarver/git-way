@@ -89,6 +89,8 @@ func fetchFromRepo(repo *git.Repository, auth githttp.AuthMethod) *git.Repositor
 func fetchRoutine(repo *git.Repository, auth githttp.AuthMethod, interval time.Duration) {
 	for {
 		fetchFromRepo(repo, auth)
+		err := repo.Prune(git.PruneOptions{})
+		check(err)
 		time.Sleep(interval)
 	}
 }
