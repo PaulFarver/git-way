@@ -25,7 +25,7 @@ type Configuration struct {
 	User          string `yaml:"user"`
 	Token         string `yaml:"token"`
 	Directory     string `yaml:"directory"`
-	fetchinterval int64  `yaml:"fetchinterval"`
+	Fetchinterval int64  `yaml:"fetchinterval"`
 }
 
 // Graph is the root element containing all graph data
@@ -249,8 +249,8 @@ func main() {
 	repo := ensureRepo(directory, repository, auth)
 	var seconds int64
 	seconds = 60 * 1000
-	if conf.fetchinterval >= 1 {
-		seconds = conf.fetchinterval * 1000
+	if conf.Fetchinterval >= 1 {
+		seconds = conf.Fetchinterval * 1000
 	}
 	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
