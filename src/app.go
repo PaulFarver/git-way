@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"flag"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,10 +21,11 @@ import (
 )
 
 type Configuration struct {
-	Repository string `yaml:"repository"`
-	User       string `yaml:"user"`
-	Token      string `yaml:"token"`
-	Directory  string `yaml:"directory"`
+	Repository    string `yaml:"repository"`
+	User          string `yaml:"user"`
+	Token         string `yaml:"token"`
+	Directory     string `yaml:"directory"`
+	fetchinterval int64  `yaml:"fetchinterval"`
 }
 
 // Graph is the root element containing all graph data
@@ -61,33 +63,34 @@ func check(err error) {
 	}
 }
 
-func ensureRepo(path, url, user, token string) *git.Repository {
+func ensureRepo(path, url string, auth githttp.AuthMethod) *git.Repository {
 	repo, err := git.PlainOpen(path)
-	if err != nil {
-		fmt.Println("Checking out repository")
+	if err == git.ErrRepositoryNotExists {
 		repo, err = git.PlainClone(path, true, &git.CloneOptions{
 			URL:        url,
-			Progress:   os.Stdout,
 			NoCheckout: true,
-			Auth: &githttp.BasicAuth{
-				Username: user,
-				Password: token,
-			},
+			Auth:       auth,
 		})
 	}
 	check(err)
-	fmt.Println("Fetching")
-	err = repo.Fetch(&git.FetchOptions{
-		Auth: &githttp.BasicAuth{
-			Username: user,
-			Password: token,
-		},
-		Progress: os.Stdout,
+	return repo
+}
+
+func fetchFromRepo(repo *git.Repository, auth githttp.AuthMethod) *git.Repository {
+	err := repo.Fetch(&git.FetchOptions{
+		Auth: auth,
 	})
 	if err != git.NoErrAlreadyUpToDate {
 		check(err)
 	}
 	return repo
+}
+
+func fetchRoutine(repo *git.Repository, auth githttp.AuthMethod, interval time.Duration) {
+	for {
+		fetchFromRepo(repo, auth)
+		time.Sleep(interval)
+	}
 }
 
 func getCheckTime(currTime time.Time, duration string) time.Time {
@@ -196,7 +199,7 @@ func parseGraphQuery(q url.Values) (time.Time, time.Time) {
 	return before, after
 }
 
-func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.Request) {
+func generateGraphHandler(repo *git.Repository, auth githttp.AuthMethod) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		before, after := parseGraphQuery(q)
@@ -205,20 +208,53 @@ func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.
 	}
 }
 
-func GrabConfiguration(path string) Configuration {
-	bytes, err := ioutil.ReadFile(path)
-	check(err)
+func grabConfiguration(path string) Configuration {
 	conf := Configuration{}
+	bytes, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
+		return conf
+	}
+	check(err)
 	err = yaml.Unmarshal(bytes, &conf)
 	check(err)
 	return conf
 }
 
+func extractFromConfiguration(conf Configuration) (string, string, githttp.AuthMethod) {
+	directory := "repositories/git-way"
+	repository := "https://github.com/PaulFarver/git-way"
+	auth := &githttp.BasicAuth{}
+	auth = nil
+	if conf.Directory != "" {
+		directory = conf.Directory
+	}
+	if conf.Repository != "" {
+		repository = conf.Repository
+	}
+	if conf.User != "" && conf.Token != "" {
+		auth = &githttp.BasicAuth{
+			Username: conf.User,
+			Password: conf.Token,
+		}
+	}
+	return directory, repository, auth
+}
+
 func main() {
-	filepath := os.Args[1]
-	conf := GrabConfiguration(filepath)
-	repo := ensureRepo(conf.Directory, conf.Repository, conf.User, conf.Token)
+	confpath := flag.String("c", "", "The configuration file for the repository to check out")
+	flag.Parse()
+	log.Println("Preparing repository...")
+	conf := grabConfiguration(*confpath)
+	directory, repository, auth := extractFromConfiguration(conf)
+	repo := ensureRepo(directory, repository, auth)
+	var seconds int64
+	seconds = 60 * 1000
+	if conf.fetchinterval >= 1 {
+		seconds = conf.fetchinterval * 1000
+	}
+	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
-	http.HandleFunc("/api/graph", generateGraphHandler(repo))
-	http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/api/graph", generateGraphHandler(repo, auth))
+	log.Println("Ready to handle requests...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
