@@ -1,0 +1,5 @@
+repository: https://github.com/PaulFarver/git-way
+directory: /data/repositories/git-way
+fetchinterval: 60
+# user: Some user name
+# token: A github access token
