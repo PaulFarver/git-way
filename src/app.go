@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,7 +16,17 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	githttp "gopkg.in/src-d/go-git.v4/plumbing/transport/http"
+	"gopkg.in/yaml.v3"
 )
+
+type Configuration struct {
+	Repository    string `yaml:"repository"`
+	User          string `yaml:"user"`
+	Token         string `yaml:"token"`
+	Directory     string `yaml:"directory"`
+	Fetchinterval int64  `yaml:"fetchinterval"`
+}
 
 // Graph is the root element containing all graph data
 type Graph struct {
@@ -50,24 +63,34 @@ func check(err error) {
 	}
 }
 
-func ensureRepo() *git.Repository {
-	repo, err := git.PlainOpen("../temp/go-git")
-	if err != nil {
-		repo, err = git.PlainClone("../temp/go-git", false, &git.CloneOptions{
-			URL:      "https://github.com/src-d/go-git",
-			Progress: os.Stdout,
+func ensureRepo(path, url string, auth githttp.AuthMethod) *git.Repository {
+	repo, err := git.PlainOpen(path)
+	if err == git.ErrRepositoryNotExists {
+		repo, err = git.PlainClone(path, true, &git.CloneOptions{
+			URL:        url,
+			NoCheckout: true,
+			Auth:       auth,
 		})
 	}
 	check(err)
-	err = repo.Fetch(&git.FetchOptions{
-		Progress: os.Stdout,
+	return repo
+}
+
+func fetchFromRepo(repo *git.Repository, auth githttp.AuthMethod) *git.Repository {
+	err := repo.Fetch(&git.FetchOptions{
+		Auth: auth,
 	})
 	if err != git.NoErrAlreadyUpToDate {
 		check(err)
 	}
-	err = repo.Prune(git.PruneOptions{})
-	check(err)
 	return repo
+}
+
+func fetchRoutine(repo *git.Repository, auth githttp.AuthMethod, interval time.Duration) {
+	for {
+		fetchFromRepo(repo, auth)
+		time.Sleep(interval)
+	}
 }
 
 func getCheckTime(currTime time.Time, duration string) time.Time {
@@ -176,7 +199,7 @@ func parseGraphQuery(q url.Values) (time.Time, time.Time) {
 	return before, after
 }
 
-func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.Request) {
+func generateGraphHandler(repo *git.Repository, auth githttp.AuthMethod) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		before, after := parseGraphQuery(q)
@@ -185,9 +208,53 @@ func generateGraphHandler(repo *git.Repository) func(http.ResponseWriter, *http.
 	}
 }
 
+func grabConfiguration(path string) Configuration {
+	conf := Configuration{}
+	bytes, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
+		return conf
+	}
+	check(err)
+	err = yaml.Unmarshal(bytes, &conf)
+	check(err)
+	return conf
+}
+
+func extractFromConfiguration(conf Configuration) (string, string, githttp.AuthMethod) {
+	directory := "repositories/git-way"
+	repository := "https://github.com/PaulFarver/git-way"
+	auth := &githttp.BasicAuth{}
+	auth = nil
+	if conf.Directory != "" {
+		directory = conf.Directory
+	}
+	if conf.Repository != "" {
+		repository = conf.Repository
+	}
+	if conf.User != "" && conf.Token != "" {
+		auth = &githttp.BasicAuth{
+			Username: conf.User,
+			Password: conf.Token,
+		}
+	}
+	return directory, repository, auth
+}
+
 func main() {
-	repo := ensureRepo()
+	confpath := flag.String("c", "", "The configuration file for the repository to check out")
+	flag.Parse()
+	log.Println("Preparing repository...")
+	conf := grabConfiguration(*confpath)
+	directory, repository, auth := extractFromConfiguration(conf)
+	repo := ensureRepo(directory, repository, auth)
+	var seconds int64
+	seconds = 60 * 1000
+	if conf.Fetchinterval >= 1 {
+		seconds = conf.Fetchinterval * 1000
+	}
+	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
-	http.HandleFunc("/api/graph", generateGraphHandler(repo))
-	http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/api/graph", generateGraphHandler(repo, auth))
+	log.Println("Ready to handle requests...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
