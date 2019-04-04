@@ -76,6 +76,15 @@ func ensureRepo(path, url string, auth githttp.AuthMethod) *git.Repository {
 	return repo
 }
 
+func cleanRepo(repo *git.Repository) {
+	refs, err := repo.References()
+	check(err)
+	refs.ForEach(func(ref *plumbing.Reference) error {
+		repo.Storer.RemoveReference(ref.Name())
+		return nil
+	})
+}
+
 func fetchFromRepo(repo *git.Repository, auth githttp.AuthMethod) *git.Repository {
 	err := repo.Fetch(&git.FetchOptions{
 		Auth: auth,
@@ -88,9 +97,8 @@ func fetchFromRepo(repo *git.Repository, auth githttp.AuthMethod) *git.Repositor
 
 func fetchRoutine(repo *git.Repository, auth githttp.AuthMethod, interval time.Duration) {
 	for {
+		cleanRepo(repo)
 		fetchFromRepo(repo, auth)
-		err := repo.Prune(git.PruneOptions{})
-		check(err)
 		time.Sleep(interval)
 	}
 }
@@ -250,9 +258,9 @@ func main() {
 	directory, repository, auth := extractFromConfiguration(conf)
 	repo := ensureRepo(directory, repository, auth)
 	var seconds int64
-	seconds = 60 * 1000
+	seconds = 60 * 1000000000
 	if conf.Fetchinterval >= 1 {
-		seconds = conf.Fetchinterval * 1000
+		seconds = conf.Fetchinterval * 1000000000
 	}
 	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
