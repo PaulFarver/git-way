@@ -80,7 +80,9 @@ func cleanRepo(repo *git.Repository) {
 	refs, err := repo.References()
 	check(err)
 	refs.ForEach(func(ref *plumbing.Reference) error {
-		repo.Storer.RemoveReference(ref.Name())
+		if ref.Name().IsRemote() {
+			repo.Storer.RemoveReference(ref.Name())
+		}
 		return nil
 	})
 }
