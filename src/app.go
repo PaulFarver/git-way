@@ -266,6 +266,7 @@ func main() {
 	}
 	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
+	http.HandleFunc("/healthz", func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(200) })
 	http.HandleFunc("/api/graph", generateGraphHandler(repo, auth))
 	log.Println("Ready to handle requests...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
