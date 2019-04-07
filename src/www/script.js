@@ -11,15 +11,14 @@ var HttpClient = function() {
   };
 };
 
-var svg = d3.select("#graph");
-
 pullfunction = function() {
   var client = new HttpClient();
   client.get("/api/graph?" + window.location.search.substring(1), function(
     response
   ) {
     let a = performance.now();
-    render(svg, JSON.parse(response));
+    // let svg = d3.select("#graph");
+    render(JSON.parse(response));
     let b = performance.now();
     console.log(`Graph rendered in ${Math.round((b - a) * 10) / 10} ms`);
   });
@@ -264,9 +263,12 @@ pullfunction = function() {
       .html(r => removePrefix(r.ref));
   }
 
-  function render(svg, graph) {
-    var width = 1800;
-    var padding = 0;
+  function render(graph) {
+    d3.select("#graph").remove();
+    let svg = d3.select("body").append("svg").attr("id", "graph").attr("width", "100%")
+
+    let width = 1800;
+    let padding = 0;
 
     result = traverseGraph(graph.branches, graph.mintime, graph.maxtime, width);
     let nodes = result.nodes;
