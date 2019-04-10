@@ -33,6 +33,7 @@ type Graph struct {
 	Links      []GraphLink            `json:"links"`
 	Branches   []GraphBranch          `json:"branches"`
 	Nodes      map[string]GraphNode   `json:"nodes"`
+	Relevants  map[string]bool        `json:"relevants"`
 	References map[string][]CommitRef `json:"references"`
 	Maxtime    int64                  `json:"maxtime"`
 	Mintime    int64                  `json:"mintime"`
@@ -166,6 +167,15 @@ func establishBranchLinks(nodes map[string]GraphNode, after time.Time) []GraphLi
 	return links
 }
 
+func findRelevants(links []GraphLink) map[string]bool {
+	result := make(map[string]bool)
+	for _, link := range links {
+		result[link.Source] = true
+		result[link.Target] = true
+	}
+	return result
+}
+
 func walkCommit(commit *object.Commit, branch string, after time.Time, nodes map[string]GraphNode, links []GraphLink) (map[string]GraphNode, []GraphLink) {
 	if _, ok := nodes[commit.Hash.String()]; ok || commit.Committer.When.Before(after) {
 		return nodes, links
@@ -201,7 +211,7 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 	check(err)
 	refIter.ForEach(func(r *plumbing.Reference) error {
 		c, _ := repo.CommitObject(r.Hash())
-		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" {
+		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" && !c.Committer.When.Before(after) {
 			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: assignPriority(r.Name()), LastCommitter: c.Author.Name})
 			branchHeads[r.Name().Short()] = r.Hash()
 			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
@@ -212,15 +222,20 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 		return nil
 	})
 
+	last := 0
 	sort.Slice(branches, func(i, j int) bool {
 		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
 	})
 	for _, branch := range branches {
 		c, _ := repo.CommitObject(branchHeads[branch.Name])
 		graph.Nodes, graph.Links = walkCommit(c, branch.Name, after, graph.Nodes, graph.Links)
-		graph.Branches = append(graph.Branches, branch)
+		if n := len(graph.Nodes); n > last {
+			graph.Branches = append(graph.Branches, branch)
+			last = n
+		}
 	}
 	graph.Links = append(graph.Links, establishBranchLinks(graph.Nodes, after)...)
+	graph.Relevants = findRelevants(graph.Links)
 
 	// Write to file
 	b, err := json.Marshal(graph)
