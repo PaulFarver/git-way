@@ -30,7 +30,9 @@ type Configuration struct {
 
 // Graph is the root element containing all graph data
 type Graph struct {
+	Links      []GraphLink            `json:"links"`
 	Branches   []GraphBranch          `json:"branches"`
+	Nodes      map[string]GraphNode   `json:"nodes"`
 	References map[string][]CommitRef `json:"references"`
 	Maxtime    int64                  `json:"maxtime"`
 	Mintime    int64                  `json:"mintime"`
@@ -38,17 +40,21 @@ type Graph struct {
 
 // GraphBranch is an element representing git branch
 type GraphBranch struct {
-	Name          string               `json:"name"`
-	Nodes         map[string]GraphNode `json:"nodes"`
-	LastCommit    int64                `json:"lastcommit"`
-	LastCommitter string               `json:"lastcommitter"`
-	Priority      int                  `json:"priority"`
+	Name          string `json:"name"`
+	LastCommit    int64  `json:"lastcommit"`
+	LastCommitter string `json:"lastcommitter"`
+	Priority      int    `json:"priority"`
 }
 
 // GraphNode is a struct containing information about a commit
 type GraphNode struct {
-	Parents   []string `json:"parentHashes"`
-	Timestamp int64    `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	Branch    string `json:"branch"`
+}
+
+type GraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
 }
 
 // CommitRef is a struct containing information about a git reference
@@ -134,27 +140,61 @@ func assignPriority(branch plumbing.ReferenceName) int {
 	return 5
 }
 
-func walkCommit(commit *object.Commit, after time.Time, nodes map[string]GraphNode, parsed map[string]bool) (map[string]GraphNode, map[string]bool) {
-	if _, ok := parsed[commit.Hash.String()]; ok {
-		return nodes, parsed
+func establishBranchLinks(nodes map[string]GraphNode, after time.Time) []GraphLink {
+	max := map[string]string{}
+	min := map[string]string{}
+	pre := map[string]string{}
+	links := []GraphLink{}
+	for hash, node := range nodes {
+		if node.Timestamp != 0 {
+			if _, ok := max[node.Branch]; !ok || nodes[max[node.Branch]].Timestamp < node.Timestamp {
+				max[node.Branch] = hash
+			}
+			if _, ok := min[node.Branch]; !ok || nodes[min[node.Branch]].Timestamp > node.Timestamp {
+				min[node.Branch] = hash
+			}
+		} else {
+			pre[node.Branch] = hash
+		}
 	}
-	parentHashes := []string{}
-	if !commit.Committer.When.Before(after) {
-		commit.Parents().ForEach(func(parent *object.Commit) error {
-			nodes, parsed = walkCommit(parent, after, nodes, parsed)
-			parentHashes = append(parentHashes, parent.Hash.String())
-			return nil
-		})
-		parsed[commit.Hash.String()] = true
+	for branch := range pre {
+		links = append(links, GraphLink{Source: min[branch], Target: pre[branch]})
 	}
-	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Parents: parentHashes}
-	return nodes, parsed
+	for branch := range min {
+		links = append(links, GraphLink{Source: max[branch], Target: min[branch]})
+	}
+	return links
+}
+
+func walkCommit(commit *object.Commit, branch string, after time.Time, nodes map[string]GraphNode, links []GraphLink) (map[string]GraphNode, []GraphLink) {
+	if _, ok := nodes[commit.Hash.String()]; ok || commit.Committer.When.Before(after) {
+		return nodes, links
+	}
+	commit.Parents().ForEach(func(parent *object.Commit) error {
+		if parent.Committer.When.Before(after) {
+			nodes[branch+"-prehistoric"] = GraphNode{Timestamp: 0, Branch: branch}
+		} else if node, ok := nodes[parent.Hash.String()]; ok && node.Branch != branch {
+			links = append(links, GraphLink{Source: commit.Hash.String(), Target: parent.Hash.String()})
+		} else if !ok {
+			nodes, links = walkCommit(parent, branch, after, nodes, links)
+		}
+		return nil
+	})
+	nodes[commit.Hash.String()] = GraphNode{Timestamp: commit.Committer.When.Unix(), Branch: branch}
+	return nodes, links
 }
 
 func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 	branches := []GraphBranch{}
 	branchHeads := make(map[string]plumbing.Hash)
-	graph := Graph{Branches: []GraphBranch{}, References: make(map[string][]CommitRef), Maxtime: current.Unix(), Mintime: after.Unix()}
+	graph := Graph{
+		Links:      []GraphLink{},
+		Branches:   []GraphBranch{},
+		Mintime:    after.Unix(),
+		Maxtime:    current.Unix(),
+		Nodes:      map[string]GraphNode{},
+		References: map[string][]CommitRef{},
+	}
 
 	// Discover branches
 	refIter, err := repo.References()
@@ -172,16 +212,15 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 		return nil
 	})
 
-	excluded := make(map[string]bool)
-
 	sort.Slice(branches, func(i, j int) bool {
 		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
 	})
 	for _, branch := range branches {
 		c, _ := repo.CommitObject(branchHeads[branch.Name])
-		branch.Nodes, excluded = walkCommit(c, after, make(map[string]GraphNode), excluded)
+		graph.Nodes, graph.Links = walkCommit(c, branch.Name, after, graph.Nodes, graph.Links)
 		graph.Branches = append(graph.Branches, branch)
 	}
+	graph.Links = append(graph.Links, establishBranchLinks(graph.Nodes, after)...)
 
 	// Write to file
 	b, err := json.Marshal(graph)
