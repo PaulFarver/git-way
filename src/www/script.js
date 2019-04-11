@@ -150,21 +150,19 @@ pullfunction = function() {
   }
 
   function drawnodes(svg, nodes, min, max, width, relevants) {
-    n = svg.selectAll(".commitobject").data(Object.keys(nodes));
+    n = svg.selectAll(".commitobject").data(Object.keys(nodes).sort());
 
-    n.exit().remove();
-
-    function updatePosition(node) {
-      node
-        .attr("r", n => (relevants[n] ? 6 : 0))
-        .attr("important", n => (relevants[n] ? true : false))
-        .attr(
-          "transform",
-          n =>
-            `translate(${getX(nodes[n].timestamp, min, max, width)}, ${getY(
-              nodes[n].branch
-            )})`
-        );
+    function updatePosition(commits) {
+      commits
+        .attr("commit", node => node)
+        .attr("r", node => (relevants[node] ? 6 : 0))
+        .attr("important", node => (relevants[node] ? true : false))
+        .attr("transform", node => {
+          console.log(node)
+          let x = getX(nodes[node].timestamp, min, max, width);
+          let y = getY(nodes[node].branch);
+          return `translate(${x}, ${y})`;
+        });
     }
 
     updatePosition(
@@ -172,10 +170,12 @@ pullfunction = function() {
         .enter()
         .append("g")
         .attr("class", "commitobject")
+        .attr("commit", node => node)
         .append("svg:circle")
         .attr("class", "commitnode")
     );
 
+    n.exit().remove();
     updatePosition(n.transition().selectAll(".commitnode"));
   }
 
@@ -221,4 +221,4 @@ pullfunction = function() {
 pullfunction();
 setInterval(function() {
   pullfunction();
-}, 2000);
+}, 10000);
