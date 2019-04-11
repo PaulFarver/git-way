@@ -11,6 +11,44 @@ var HttpClient = function() {
   };
 };
 
+function removePrefix(branch) {
+  if (branch.startsWith("origin/")) {
+    branch = branch.substr(7);
+  }
+  if (branch.startsWith("hotfix/")) {
+    branch = branch.substr(7);
+  }
+  if (branch.startsWith("feature/")) {
+    branch = branch.substr(8);
+  }
+  if (branch.startsWith("release/")) {
+    branch = branch.substr(8);
+  }
+  return branch;
+}
+
+function elapsed(timestamp) {
+  now = Date.now() / 1000;
+  let seconds = Math.floor(now - timestamp);
+  let weeks = Math.floor(seconds / 604800);
+  if (weeks >= 2) {
+    return weeks + " weeks ago";
+  }
+  let days = Math.floor(seconds / 86400);
+  if (days >= 2) {
+    return days + " days ago";
+  }
+  let hours = Math.floor(seconds / 3600);
+  if (hours >= 2) {
+    return hours + " hours ago";
+  }
+  let minutes = Math.floor(seconds / 60);
+  if (minutes >= 2) {
+    return minutes + " minutes ago";
+  }
+  return "Just now";
+}
+
 pullfunction = function() {
   var client = new HttpClient();
   client.get("/api/graph?" + window.location.search.substring(1), function(
@@ -22,44 +60,6 @@ pullfunction = function() {
     let b = performance.now();
     console.log(`Graph rendered in ${Math.round((b - a) * 10) / 10} ms`);
   });
-
-  function removePrefix(branch) {
-    if (branch.startsWith("origin/")) {
-      branch = branch.substr(7);
-    }
-    if (branch.startsWith("hotfix/")) {
-      branch = branch.substr(7);
-    }
-    if (branch.startsWith("feature/")) {
-      branch = branch.substr(8);
-    }
-    if (branch.startsWith("release/")) {
-      branch = branch.substr(8);
-    }
-    return branch;
-  }
-
-  function elapsed(timestamp) {
-    now = Date.now() / 1000;
-    let seconds = Math.floor(now - timestamp);
-    let weeks = Math.floor(seconds / 604800);
-    if (weeks >= 2) {
-      return weeks + " weeks ago";
-    }
-    let days = Math.floor(seconds / 86400);
-    if (days >= 2) {
-      return days + " days ago";
-    }
-    let hours = Math.floor(seconds / 3600);
-    if (hours >= 2) {
-      return hours + " hours ago";
-    }
-    let minutes = Math.floor(seconds / 60);
-    if (minutes >= 2) {
-      return minutes + " minutes ago";
-    }
-    return "Just now";
-  }
 
   branchYs = {};
   diff = 60;
@@ -80,7 +80,10 @@ pullfunction = function() {
   function drawlanes(svg, branches, width, min) {
     ydiff = diff - 6;
     swimlanes = svg.selectAll(".branchlane").data(branches);
-    g = swimlanes.enter().append("g").attr("class", "branchlane");
+    g = swimlanes
+      .enter()
+      .append("g")
+      .attr("class", "branchlane");
     g.append("rect")
       .attr("y", branch => getY(branch.name) - diff / 2)
       .attr("width", width)
@@ -117,57 +120,105 @@ pullfunction = function() {
   }
 
   function drawlines(svg, links, nodes, min, max, width) {
-    commitlines = svg.selectAll(".commitline").data(links);
-    commitlines
-      .enter()
-      .append("line")
-      .attr("class", "commitline")
-      .attr("x1", link => getX(nodes[link.source].timestamp, min, max, width))
-      .attr("x2", link => getX(nodes[link.target].timestamp, min, max, width))
-      .attr("y1", link => getY(nodes[link.source].branch))
-      .attr("y2", link => getY(nodes[link.target].branch))
-      .attr("prehistoric", link => nodes[link.target].timestamp == 0);
+    l = svg
+      .selectAll(".commitline")
+      .data(
+        links.sort(
+          (a, b) => nodes[a.source].timestamp - nodes[b.source].timestamp
+        )
+      );
+
+    l.exit().remove();
+
+    function updatePosition(link) {
+      link
+        .attr("x1", link => getX(nodes[link.source].timestamp, min, max, width))
+        .attr("x2", link => getX(nodes[link.target].timestamp, min, max, width))
+        .attr("y1", link => getY(nodes[link.source].branch))
+        .attr("y2", link => getY(nodes[link.target].branch))
+        .attr("prehistoric", link => nodes[link.target].timestamp == 0);
+    }
+
+    updatePosition(
+      l
+        .enter()
+        .append("line")
+        .attr("class", "commitline")
+    );
+
+    updatePosition(l.transition());
   }
 
   function drawnodes(svg, nodes, min, max, width, relevants) {
-    console.log("hello")
-    commitNodes = svg.selectAll(".commitobject").data(Object.keys(nodes)).enter().append("g").attr("class", "commitobject")
-    commitNodes
-      .attr("transform", node => `translate(${getX(nodes[node].timestamp, min, max, width)}, ${getY(nodes[node].branch)})`);
-    
-    commitNodes
-    .append("svg:circle")
-    .attr("class", "commitnode")
-    .attr("r", node => relevants[node] ? 6 : 0)
-    .attr("important", node => relevants[node] ? true : false);
+    n = svg.selectAll(".commitobject").data(Object.keys(nodes));
+
+    n.exit().remove();
+
+    function updatePosition(node) {
+      node
+        .attr("r", n => (relevants[n] ? 6 : 0))
+        .attr("important", n => (relevants[n] ? true : false))
+        .attr(
+          "transform",
+          n =>
+            `translate(${getX(nodes[n].timestamp, min, max, width)}, ${getY(
+              nodes[n].branch
+            )})`
+        );
+    }
+
+    updatePosition(
+      n
+        .enter()
+        .append("g")
+        .attr("class", "commitobject")
+        .append("svg:circle")
+        .attr("class", "commitnode")
+    );
+
+    updatePosition(n.transition().selectAll(".commitnode"));
   }
 
   function render(graph) {
-    d3.select("#graph").remove();
-    let svg = d3
-      .select("body")
-      .append("svg")
-      .attr("id", "graph")
-      .attr("width", "100%");
+    let svg = d3.select("#graph");
 
     let width = 1800;
     let padding = 0;
 
+    graph.branches.forEach(branch => {
+      getY(branch.name);
+    });
+
     drawlanes(svg, graph.branches, width, graph.mintime);
 
-    var height = getY("final") - diff / 2;
+    // var height = getY("final") - diff / 2;
+    var height = 1000;
     svg.attr(
       "viewBox",
       `-${padding} -${padding} ${width + padding * 2} ${height + padding * 2}`
     );
 
-    drawlines(svg, graph.links, graph.nodes, graph.mintime, graph.maxtime, width-200);
+    drawlines(
+      svg,
+      graph.links,
+      graph.nodes,
+      graph.mintime,
+      graph.maxtime,
+      width - 200
+    );
 
-    drawnodes(svg, graph.nodes, graph.mintime, graph.maxtime, width-200, graph.relevants);
+    drawnodes(
+      svg,
+      graph.nodes,
+      graph.mintime,
+      graph.maxtime,
+      width - 200,
+      graph.relevants
+    );
   }
 };
 
 pullfunction();
 setInterval(function() {
   pullfunction();
-}, 60000);
+}, 2000);
