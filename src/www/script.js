@@ -122,7 +122,7 @@ pullfunction = function() {
   function drawlines(svg, links, nodes, min, max, width) {
     l = svg
       .selectAll(".commitline")
-      .data(links, (link) => link ? link.source+"->"+link.target : this.link);
+      .data(links, (link) => link.source+link.target);
 
     l.exit().remove();
 
@@ -140,7 +140,6 @@ pullfunction = function() {
         .enter()
         .append("line")
         .attr("class", "commitline")
-        .attr("link", link => link.source + "->"+link.target)
     );
 
     updatePosition(l.transition());
@@ -149,12 +148,11 @@ pullfunction = function() {
   function drawnodes(svg, nodes, min, max, width, relevants) {
     n = svg
       .selectAll(".commitobject")
-      .data(Object.keys(nodes), d => (d ? d : this.commit));
+      .data(Object.keys(nodes), d => d);
     n.exit().remove();
 
     function updatePosition(commits) {
       commits
-        .attr("commit", node => node)
         .attr("r", node => (relevants[node] ? 6 : 0))
         .attr("important", node => (relevants[node] ? true : false))
         .attr("transform", node => {
@@ -169,7 +167,6 @@ pullfunction = function() {
         .enter()
         .append("g")
         .attr("class", "commitobject")
-        .attr("commit", node => node)
         .append("svg:circle")
         .attr("class", "commitnode")
     );
