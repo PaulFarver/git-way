@@ -150,7 +150,10 @@ pullfunction = function() {
   }
 
   function drawnodes(svg, nodes, min, max, width, relevants) {
-    n = svg.selectAll(".commitobject").data(Object.keys(nodes).sort());
+    n = svg
+      .selectAll(".commitobject")
+      .data(Object.keys(nodes), d => (d ? d : this.commit));
+    n.exit().remove();
 
     function updatePosition(commits) {
       commits
@@ -158,7 +161,6 @@ pullfunction = function() {
         .attr("r", node => (relevants[node] ? 6 : 0))
         .attr("important", node => (relevants[node] ? true : false))
         .attr("transform", node => {
-          console.log(node)
           let x = getX(nodes[node].timestamp, min, max, width);
           let y = getY(nodes[node].branch);
           return `translate(${x}, ${y})`;
@@ -175,7 +177,6 @@ pullfunction = function() {
         .attr("class", "commitnode")
     );
 
-    n.exit().remove();
     updatePosition(n.transition().selectAll(".commitnode"));
   }
 
@@ -192,7 +193,7 @@ pullfunction = function() {
     drawlanes(svg, graph.branches, width, graph.mintime);
 
     // var height = getY("final") - diff / 2;
-    var height = 1000;
+    var height = 700;
     svg.attr(
       "viewBox",
       `-${padding} -${padding} ${width + padding * 2} ${height + padding * 2}`
