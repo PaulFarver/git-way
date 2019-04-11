@@ -57,14 +57,8 @@ body {
     stroke-dasharray: 5;
 }
 
-.commitnode{
-    r: 6;
-}
-.commitnode[important="true"] {
+.commitnode {
     fill: white;
-}
-.commitnode[important="false"] {
-    fill: none;
 }
 
 .tag {
