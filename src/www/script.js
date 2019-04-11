@@ -122,11 +122,7 @@ pullfunction = function() {
   function drawlines(svg, links, nodes, min, max, width) {
     l = svg
       .selectAll(".commitline")
-      .data(
-        links.sort(
-          (a, b) => nodes[a.source].timestamp - nodes[b.source].timestamp
-        )
-      );
+      .data(links, (link) => link ? link.source+"->"+link.target : this.link);
 
     l.exit().remove();
 
@@ -144,6 +140,7 @@ pullfunction = function() {
         .enter()
         .append("line")
         .attr("class", "commitline")
+        .attr("link", link => link.source + "->"+link.target)
     );
 
     updatePosition(l.transition());
