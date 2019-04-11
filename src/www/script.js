@@ -79,7 +79,8 @@ pullfunction = function() {
 
   function drawlanes(svg, branches, width, min) {
     ydiff = diff - 6;
-    swimlanes = svg.selectAll(".branchlane").data(branches);
+    swimlanes = svg.selectAll(".branchlane").data(branches, b => b.name);
+    swimlanes.exit().remove()
     g = swimlanes
       .enter()
       .append("g")
@@ -117,6 +118,10 @@ pullfunction = function() {
       .attr("class", "branchlabel branchtime")
       .style("line-height", ydiff / 3 + "px")
       .html(branch => elapsed(branch.lastcommit));
+
+    swimlanes.transition().selectAll("foreignObject body.branchlabel.branchname").text(d => removePrefix(d.name))
+    swimlanes.transition().selectAll("foreignObject body.branchlabel.branchauthor").text(d => d.lastcommitter)
+    swimlanes.transition().selectAll("foreignObject body.branchlabel.branchtime").text(d => elapsed(d.lastcommit))
   }
 
   function drawlines(svg, links, nodes, min, max, width) {
