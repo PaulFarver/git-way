@@ -52,6 +52,7 @@ type GraphNode struct {
 	Branch    string `json:"branch"`
 }
 
+// GraphLink is a struct containing information about which commits to link together in graph
 type GraphLink struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
