@@ -158,11 +158,11 @@ function drawlanes(svg, branches, width, diff, y) {
 }
 
 function drawlines(svg, links, nodes, x, y) {
-  let l = svg
+  let lines = svg
     .selectAll(".commitline")
     .data(links, link => link.source + link.target);
 
-  l.exit().remove();
+  lines.exit().remove();
 
   function updatePosition(selection) {
     selection
@@ -174,13 +174,13 @@ function drawlines(svg, links, nodes, x, y) {
   }
 
   updatePosition(
-    l
+    lines
       .enter()
       .append("line")
       .attr("class", "commitline")
   );
 
-  updatePosition(l.transition());
+  updatePosition(lines.transition());
 }
 
 function drawnodes(svg, nodes, relevants, x, y) {
@@ -188,25 +188,30 @@ function drawnodes(svg, nodes, relevants, x, y) {
   selects.exit().remove();
 
   function updatePosition(selection) {
-    selection
-      .attr("r", node => (relevants[node] ? 6 : 0))
-      .attr("important", node => (relevants[node] ? true : false))
-      .attr(
-        "transform",
-        n => `translate(${x(nodes[n].timestamp)}, ${y(nodes[n].branch)})`
-      );
+    return selection.attr(
+      "transform",
+      n => `translate(${x(nodes[n].timestamp)}, ${y(nodes[n].branch)})`
+    );
   }
 
-  updatePosition(
-    selects
-      .enter()
-      .append("g")
-      .attr("class", "commitobject")
-      .append("svg:circle")
-      .attr("class", "commitnode")
-  );
+  function updateCircles(selection) {
+    return selection
+      .attr("r", node => (relevants[node] ? 6 : 0))
+      .attr("important", node => (relevants[node] ? true : false));
+  }
 
-  updatePosition(selects.transition().selectAll(".commitnode"));
+  objects = selects
+    .enter()
+    .append("g")
+    .attr("class", "commitobject");
+  circles = updatePosition(objects)
+    .append("svg:circle")
+    .attr("class", "commitnode");
+  updateCircles(circles);
+
+  objects = selects.transition();
+  updatePosition(objects);
+  updateCircles(objects.select(".commitnode"));
 }
 
 pullfunction();
