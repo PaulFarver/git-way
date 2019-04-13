@@ -64,13 +64,13 @@ pullfunction = function() {
 function generateY(diff) {
   let branchYs = {};
   let curry = diff / 2;
-  return (y = branch => {
+  return branch => {
     if (branchYs[branch] == null) {
       branchYs[branch] = curry;
       curry += diff;
     }
     return branchYs[branch];
-  });
+  };
 }
 
 function generateX(width, min, max) {
