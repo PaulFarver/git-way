@@ -61,23 +61,6 @@ pullfunction = function() {
   });
 };
 
-function generateY(diff) {
-  let branchYs = {};
-  let curry = diff / 2;
-  return branch => {
-    if (branchYs[branch] == null) {
-      branchYs[branch] = curry;
-      curry += diff;
-    }
-    return branchYs[branch];
-  };
-}
-
-function generateX(width, min, max) {
-  xfactor = (width - 200) / (max - min);
-  return timestamp => (timestamp - min) * xfactor;
-}
-
 function render(graph) {
   let svg = d3.select("#graph");
 
@@ -103,6 +86,23 @@ function render(graph) {
   drawlines(svg.select("#lines"), graph.links, graph.nodes, x, y);
 
   drawnodes(svg.select("#commits"), graph.nodes, graph.relevants, x, y);
+}
+
+function generateY(diff) {
+  let branchYs = {};
+  let curry = diff / 2;
+  return branch => {
+    if (branchYs[branch] == null) {
+      branchYs[branch] = curry;
+      curry += diff;
+    }
+    return branchYs[branch];
+  };
+}
+
+function generateX(width, min, max) {
+  xfactor = (width - 200) / (max - min);
+  return timestamp => (timestamp - min) * xfactor;
 }
 
 function drawlanes(svg, branches, width, diff, y) {
