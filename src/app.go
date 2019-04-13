@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Configuration struct for parsing configuration file
 type Configuration struct {
 	Repository    string `yaml:"repository"`
 	User          string `yaml:"user"`
@@ -275,11 +276,11 @@ func grabConfiguration(path string) Configuration {
 	return conf
 }
 
-func extractFromConfiguration(conf Configuration) (string, string, githttp.AuthMethod) {
+func extractFromConfiguration(conf Configuration) (string, string, githttp.AuthMethod, int64) {
 	directory := "repositories/git-way"
 	repository := "https://github.com/PaulFarver/git-way"
 	auth := &githttp.BasicAuth{}
-	auth = nil
+	interval := int64(60000000000)
 	if conf.Directory != "" {
 		directory = conf.Directory
 	}
@@ -292,7 +293,10 @@ func extractFromConfiguration(conf Configuration) (string, string, githttp.AuthM
 			Password: conf.Token,
 		}
 	}
-	return directory, repository, auth
+	if conf.Fetchinterval > 0 {
+		interval = conf.Fetchinterval * 1000000000
+	}
+	return directory, repository, auth, interval
 }
 
 func main() {
@@ -300,13 +304,8 @@ func main() {
 	flag.Parse()
 	log.Println("Preparing repository...")
 	conf := grabConfiguration(*confpath)
-	directory, repository, auth := extractFromConfiguration(conf)
+	directory, repository, auth, seconds := extractFromConfiguration(conf)
 	repo := ensureRepo(directory, repository, auth)
-	var seconds int64
-	seconds = 60 * 1000000000
-	if conf.Fetchinterval >= 1 {
-		seconds = conf.Fetchinterval * 1000000000
-	}
 	go fetchRoutine(repo, auth, time.Duration(seconds))
 	http.Handle("/", http.FileServer(http.Dir("www/")))
 	http.HandleFunc("/healthz", func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(200) })
