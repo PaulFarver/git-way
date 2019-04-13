@@ -30,13 +30,12 @@ type Configuration struct {
 
 // Graph is the root element containing all graph data
 type Graph struct {
-	Links      []GraphLink            `json:"links"`
-	Branches   []GraphBranch          `json:"branches"`
-	Nodes      map[string]GraphNode   `json:"nodes"`
-	Relevants  map[string]bool        `json:"relevants"`
-	References map[string][]CommitRef `json:"references"`
-	Maxtime    int64                  `json:"maxtime"`
-	Mintime    int64                  `json:"mintime"`
+	Links     []GraphLink          `json:"links"`
+	Branches  []GraphBranch        `json:"branches"`
+	Nodes     map[string]GraphNode `json:"nodes"`
+	Relevants map[string]bool      `json:"relevants"`
+	Maxtime   int64                `json:"maxtime"`
+	Mintime   int64                `json:"mintime"`
 }
 
 // GraphBranch is an element representing git branch
@@ -56,12 +55,6 @@ type GraphNode struct {
 type GraphLink struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
-}
-
-// CommitRef is a struct containing information about a git reference
-type CommitRef struct {
-	Ref  string `json:"ref"`
-	Type string `json:"type"`
 }
 
 func check(err error) {
@@ -198,12 +191,11 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 	branches := []GraphBranch{}
 	branchHeads := make(map[string]plumbing.Hash)
 	graph := Graph{
-		Links:      []GraphLink{},
-		Branches:   []GraphBranch{},
-		Mintime:    after.Unix(),
-		Maxtime:    current.Unix(),
-		Nodes:      map[string]GraphNode{},
-		References: map[string][]CommitRef{},
+		Links:    []GraphLink{},
+		Branches: []GraphBranch{},
+		Mintime:  after.Unix(),
+		Maxtime:  current.Unix(),
+		Nodes:    map[string]GraphNode{},
 	}
 
 	// Discover branches
@@ -214,17 +206,13 @@ func buildGraph(repo *git.Repository, current, after time.Time) []byte {
 		if r.Name().IsRemote() && r.Name().Short() != "origin/HEAD" && !c.Committer.When.Before(after) {
 			branches = append(branches, GraphBranch{Name: r.Name().Short(), LastCommit: c.Committer.When.Unix(), Priority: assignPriority(r.Name()), LastCommitter: c.Author.Name})
 			branchHeads[r.Name().Short()] = r.Hash()
-			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "branch"})
-		}
-		if r.Name().IsTag() {
-			graph.References[r.Hash().String()] = append(graph.References[r.Hash().String()], CommitRef{Ref: r.Name().Short(), Type: "tag"})
 		}
 		return nil
 	})
 
 	last := 0
 	sort.Slice(branches, func(i, j int) bool {
-		return branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit || branches[i].Priority < branches[j].Priority
+		return branches[i].Priority < branches[j].Priority || branches[i].Priority == branches[j].Priority && branches[i].LastCommit > branches[j].LastCommit
 	})
 	for _, branch := range branches {
 		c, _ := repo.CommitObject(branchHeads[branch.Name])
