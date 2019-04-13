@@ -131,8 +131,8 @@ pullfunction = function() {
 
     l.exit().remove();
 
-    function updatePosition(link) {
-      link
+    function updatePosition(selection) {
+      selection
         .attr("x1", link => getX(nodes[link.source].timestamp, min, max, width))
         .attr("x2", link => getX(nodes[link.target].timestamp, min, max, width))
         .attr("y1", link => getY(nodes[link.source].branch))
@@ -156,8 +156,8 @@ pullfunction = function() {
       .data(Object.keys(nodes), d => d);
     n.exit().remove();
 
-    function updatePosition(commits) {
-      commits
+    function updatePosition(selection) {
+      selection
         .attr("r", node => (relevants[node] ? 6 : 0))
         .attr("important", node => (relevants[node] ? true : false))
         .attr("transform", node => {
