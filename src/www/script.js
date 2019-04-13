@@ -59,23 +59,24 @@ pullfunction = function() {
     let b = performance.now();
     console.log(`Graph rendered in ${Math.round((b - a) * 10) / 10} ms`);
   });
+};
 
-  branchYs = {};
-  diff = 60;
-  curry = diff / 2;
-
-  function getY(branch) {
+function generateY(diff) {
+  let branchYs = {};
+  let curry = diff / 2;
+  return (y = branch => {
     if (branchYs[branch] == null) {
       branchYs[branch] = curry;
       curry += diff;
     }
     return branchYs[branch];
-  }
+  });
+}
 
-  function getX(timestamp, min, max, width) {
-    return (width * (timestamp - min)) / (max - min);
-  }
-};
+function generateX(width, min, max) {
+  xfactor = (width - 200) / (max - min);
+  return timestamp => (timestamp - min) * xfactor;
+}
 
 function render(graph) {
   let svg = d3.select("#graph");
@@ -83,52 +84,25 @@ function render(graph) {
   let width = 1800;
   let padding = 0;
 
-  let branchYs = {};
   let diff = 60;
-  let curry = diff / 2;
-
-  let y = branch => {
-    if (branchYs[branch] == null) {
-      branchYs[branch] = curry;
-      curry += diff;
-    }
-    return branchYs[branch];
-  };
-
-  xfactor = (width - 200) / (graph.maxtime - graph.mintime);
-  let x = timestamp => {
-    return (timestamp - graph.mintime) * xfactor;
-  };
+  let y = generateY(diff);
+  let x = generateX(width, graph.mintime, graph.maxtime);
 
   graph.branches.forEach(branch => {
     y(branch.name);
   });
 
-  drawlanes(svg, graph.branches, width, diff, y);
+  drawlanes(svg.select("#swimlanes"), graph.branches, width, diff, y);
 
-  let height = y("final");
+  let height = y("final") - diff / 2;
   svg.attr(
     "viewBox",
     `-${padding} -${padding} ${width + padding * 2} ${height + padding * 2}`
   );
 
-  drawlines(
-    svg,
-    graph.links,
-    graph.nodes,
-    graph.mintime,
-    graph.maxtime,
-    width - 200
-  );
+  drawlines(svg.select("#lines"), graph.links, graph.nodes, x, y);
 
-  drawnodes(
-    svg,
-    graph.nodes,
-    graph.mintime,
-    graph.maxtime,
-    width - 200,
-    graph.relevants
-  );
+  drawnodes(svg.select("#commits"), graph.nodes, graph.relevants, x, y);
 }
 
 function drawlanes(svg, branches, width, diff, y) {
@@ -147,7 +121,7 @@ function drawlanes(svg, branches, width, diff, y) {
     .attr("priority", branch => branch.priority);
   g.append("foreignObject")
     .attr("x", width - 200)
-    .attr("y",  0)
+    .attr("y", 0)
     .attr("width", 200)
     .attr("height", ydiff / 3)
     .append("xhtml:body")
@@ -156,7 +130,7 @@ function drawlanes(svg, branches, width, diff, y) {
     .text(b => removePrefix(b.name));
   g.append("foreignObject")
     .attr("x", width - 200)
-    .attr("y",  ydiff / 3)
+    .attr("y", ydiff / 3)
     .attr("width", 200)
     .attr("height", ydiff / 3)
     .append("xhtml:body")
@@ -165,14 +139,14 @@ function drawlanes(svg, branches, width, diff, y) {
     .text(b => b.lastcommitter);
   g.append("foreignObject")
     .attr("x", width - 200)
-    .attr("y", ydiff * 2 / 3)
+    .attr("y", (ydiff * 2) / 3)
     .attr("width", 200)
     .attr("height", ydiff / 3)
     .append("xhtml:body")
     .attr("class", "branchlabel branchtime")
     .style("line-height", ydiff / 3 + "px")
     .text(b => elapsed(b.lastcommit));
-    
+
   swimlanes
     .transition()
     .selectAll("foreignObject body.branchlabel.branchauthor")
@@ -183,7 +157,7 @@ function drawlanes(svg, branches, width, diff, y) {
     .text(d => elapsed(d.lastcommit));
 }
 
-function drawlines(svg, links, nodes, min, max, width) {
+function drawlines(svg, links, nodes, x, y) {
   let l = svg
     .selectAll(".commitline")
     .data(links, link => link.source + link.target);
@@ -192,10 +166,10 @@ function drawlines(svg, links, nodes, min, max, width) {
 
   function updatePosition(selection) {
     selection
-      .attr("x1", link => getX(nodes[link.source].timestamp, min, max, width))
-      .attr("x2", link => getX(nodes[link.target].timestamp, min, max, width))
-      .attr("y1", link => getY(nodes[link.source].branch))
-      .attr("y2", link => getY(nodes[link.target].branch))
+      .attr("x1", link => x(nodes[link.source].timestamp))
+      .attr("x2", link => x(nodes[link.target].timestamp))
+      .attr("y1", link => y(nodes[link.source].branch))
+      .attr("y2", link => y(nodes[link.target].branch))
       .attr("prehistoric", link => nodes[link.target].timestamp == 0);
   }
 
@@ -209,23 +183,22 @@ function drawlines(svg, links, nodes, min, max, width) {
   updatePosition(l.transition());
 }
 
-function drawnodes(svg, nodes, min, max, width, relevants) {
-  n = svg.selectAll(".commitobject").data(Object.keys(nodes), d => d);
-  n.exit().remove();
+function drawnodes(svg, nodes, relevants, x, y) {
+  let selects = svg.selectAll(".commitobject").data(Object.keys(nodes), d => d);
+  selects.exit().remove();
 
   function updatePosition(selection) {
     selection
       .attr("r", node => (relevants[node] ? 6 : 0))
       .attr("important", node => (relevants[node] ? true : false))
-      .attr("transform", node => {
-        let x = getX(nodes[node].timestamp, min, max, width);
-        let y = getY(nodes[node].branch);
-        return `translate(${x}, ${y})`;
-      });
+      .attr(
+        "transform",
+        n => `translate(${x(nodes[n].timestamp)}, ${y(nodes[n].branch)})`
+      );
   }
 
   updatePosition(
-    n
+    selects
       .enter()
       .append("g")
       .attr("class", "commitobject")
@@ -233,7 +206,7 @@ function drawnodes(svg, nodes, min, max, width, relevants) {
       .attr("class", "commitnode")
   );
 
-  updatePosition(n.transition().selectAll(".commitnode"));
+  updatePosition(selects.transition().selectAll(".commitnode"));
 }
 
 pullfunction();
