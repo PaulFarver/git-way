@@ -107,12 +107,12 @@ function generateX(width, min, max) {
 
 function drawlanes(svg, branches, width, diff, y) {
   let ydiff = diff - 6;
-  let swimlanes = svg.selectAll(".branchlane").data(branches, b => b.name);
-  swimlanes.exit().remove();
+  let lanes = svg.selectAll(".branchlane").data(branches, b => b.name);
+  lanes.exit().remove();
 
   let t = b => `translate(0, ${y(b.name) - diff / 2})`;
 
-  g = swimlanes
+  g = lanes
     .enter()
     .append("g")
     .attr("class", "branchlane")
@@ -142,13 +142,13 @@ function drawlanes(svg, branches, width, diff, y) {
     .attr("class", "branchlabel branchtime")
     .text(b => elapsed(b.lastcommit));
 
-  swimlanes.transition().attr("transform", t);
+  lanes.transition().attr("transform", t);
 
-  swimlanes
+  lanes
     .transition()
     .selectAll("foreignObject body p.branchlabel.branchauthor")
     .text(d => d.lastcommitter);
-  swimlanes
+  lanes
     .transition()
     .selectAll("foreignObject body p.branchlabel.branchtime")
     .text(d => elapsed(d.lastcommit));
