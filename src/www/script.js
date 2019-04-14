@@ -25,7 +25,7 @@ function elapsed(timestamp) {
     case seconds > 7200:
       return `${Math.floor(seconds / 3600)} hours ago`
     case seconds > 120:
-      return `${Math.floor(seconds / 120)} minutes ago`
+      return `${Math.floor(seconds / 60)} minutes ago`
     default:
       return "just now"
   }
