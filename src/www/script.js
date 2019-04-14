@@ -54,10 +54,7 @@ pullfunction = function() {
   client.get("/api/graph?" + window.location.search.substring(1), function(
     response
   ) {
-    let a = performance.now();
     render(JSON.parse(response));
-    let b = performance.now();
-    console.log(`Graph rendered in ${Math.round((b - a) * 10) / 10} ms`);
   });
 };
 
@@ -106,8 +103,11 @@ function generateX(width, min, max) {
 }
 
 function drawlanes(svg, branches, width, diff, y) {
+  let a = performance.now();
   let ydiff = diff - 6;
-  let lanes = svg.selectAll(".branchlane").data(branches, b => b.name+b.lastcommit);
+  let lanes = svg
+    .selectAll(".branchlane")
+    .data(branches, b => b.name + b.lastcommit);
   lanes.exit().remove();
 
   let t = b => `translate(0, ${y(b.name) - diff / 2})`;
@@ -152,9 +152,12 @@ function drawlanes(svg, branches, width, diff, y) {
     .transition()
     .selectAll("foreignObject body p.branchlabel.branchtime")
     .text(d => elapsed(d.lastcommit));
+  let b = performance.now();
+  console.log(`Lanes rendered in ${Math.round((b - a) * 10) / 10} ms`);
 }
 
 function drawlines(svg, links, nodes, x, y) {
+  let a = performance.now();
   let lines = svg
     .selectAll(".commitline")
     .data(links, link => link.source + link.target);
@@ -178,10 +181,12 @@ function drawlines(svg, links, nodes, x, y) {
     .attr("y1", l => y(nodes[l.source].branch))
     .attr("y2", l => y(nodes[l.target].branch))
     .attr("prehistoric", l => nodes[l.target].timestamp == 0);
+  let b = performance.now();
+  console.log(`Lines rendered in ${Math.round((b - a) * 10) / 10} ms`);
 }
 
 function drawnodes(svg, nodes, relevants, x, y) {
-  let selects = svg.selectAll(".commitobject").data(Object.keys(nodes), d => d);
+  let selects = svg.selectAll(".commitobject").data(Object.keys(relevants), d => d);
   selects.exit().remove();
 
   let t = n => `translate(${x(nodes[n].timestamp)}, ${y(nodes[n].branch)})`;
