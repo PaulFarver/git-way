@@ -17,23 +17,21 @@ function removePrefix(branch) {
 function elapsed(timestamp) {
   now = Date.now() / 1000;
   let seconds = Math.floor(now - timestamp);
-  switch(true){
-    case seconds > 1209600:
-      return `${Math.floor(seconds / 604800)} weeks ago`
-    case seconds > 172800:
-      return `${Math.floor(seconds / 86400)} days ago`
-    case seconds > 7200:
-      return `${Math.floor(seconds / 3600)} hours ago`
-    case seconds > 120:
-      return `${Math.floor(seconds / 60)} minutes ago`
-    default:
-      return "just now"
+  if (seconds > 1209600) {
+    return `${Math.floor(seconds / 604800)} weeks ago`;
+  } else if (seconds > 172800) {
+    return `${Math.floor(seconds / 86400)} days ago`;
+  } else if (seconds > 7200) {
+    return `${Math.floor(seconds / 3600)} hours ago`;
+  } else if (seconds > 120) {
+    return `${Math.floor(seconds / 60)} minutes ago`;
   }
+  return "just now";
 }
 
 function pullfunction() {
-  d3.json("/api/graph" + window.location.search).then(render)
-};
+  d3.json("/api/graph" + window.location.search).then(render);
+}
 
 function render(graph) {
   let svg = d3.select("#graph");
