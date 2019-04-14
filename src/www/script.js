@@ -103,7 +103,6 @@ function generateX(width, min, max) {
 }
 
 function drawlanes(svg, branches, width, diff, y) {
-  let a = performance.now();
   let ydiff = diff - 6;
   let lanes = svg
     .selectAll(".branchlane")
@@ -142,22 +141,17 @@ function drawlanes(svg, branches, width, diff, y) {
     .attr("class", "branchlabel branchtime")
     .text(b => elapsed(b.lastcommit));
 
-  lanes.transition().attr("transform", t);
-
-  lanes
-    .transition()
+  transitions = lanes.transition();
+  transitions.attr("transform", t);
+  transitions
     .selectAll("foreignObject body p.branchlabel.branchauthor")
     .text(d => d.lastcommitter);
-  lanes
-    .transition()
+  transitions
     .selectAll("foreignObject body p.branchlabel.branchtime")
     .text(d => elapsed(d.lastcommit));
-  let b = performance.now();
-  console.log(`Lanes rendered in ${Math.round((b - a) * 10) / 10} ms`);
 }
 
 function drawlines(svg, links, nodes, x, y) {
-  let a = performance.now();
   let lines = svg
     .selectAll(".commitline")
     .data(links, link => link.source + link.target);
@@ -181,12 +175,12 @@ function drawlines(svg, links, nodes, x, y) {
     .attr("y1", l => y(nodes[l.source].branch))
     .attr("y2", l => y(nodes[l.target].branch))
     .attr("prehistoric", l => nodes[l.target].timestamp == 0);
-  let b = performance.now();
-  console.log(`Lines rendered in ${Math.round((b - a) * 10) / 10} ms`);
 }
 
 function drawnodes(svg, nodes, relevants, x, y) {
-  let selects = svg.selectAll(".commitobject").data(Object.keys(relevants), d => d);
+  let selects = svg
+    .selectAll(".commitobject")
+    .data(Object.keys(relevants), d => d);
   selects.exit().remove();
 
   let t = n => `translate(${x(nodes[n].timestamp)}, ${y(nodes[n].branch)})`;
