@@ -32,7 +32,7 @@ function elapsed(timestamp) {
 }
 
 function pullfunction() {
-  d3.json("/api/graph?" + window.location.search.substring(1)).then(render)
+  d3.json("/api/graph" + window.location.search).then(render)
 };
 
 function render(graph) {
