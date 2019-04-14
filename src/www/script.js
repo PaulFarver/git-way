@@ -26,7 +26,7 @@ function elapsed(timestamp) {
   } else if (seconds > 120) {
     return `${Math.floor(seconds / 60)} minutes ago`;
   }
-  return "just now";
+  return "Just now";
 }
 
 function pullfunction() {
