@@ -1,16 +1,3 @@
-var HttpClient = function() {
-  this.get = function(aUrl, aCallback) {
-    var anHttpRequest = new XMLHttpRequest();
-    anHttpRequest.onreadystatechange = function() {
-      if (anHttpRequest.readyState == 4 && anHttpRequest.status == 200)
-        aCallback(anHttpRequest.responseText);
-    };
-
-    anHttpRequest.open("GET", aUrl, true);
-    anHttpRequest.send(null);
-  };
-};
-
 function removePrefix(branch) {
   if (branch.startsWith("origin/")) {
     branch = branch.substr(7);
@@ -30,32 +17,22 @@ function removePrefix(branch) {
 function elapsed(timestamp) {
   now = Date.now() / 1000;
   let seconds = Math.floor(now - timestamp);
-  let weeks = Math.floor(seconds / 604800);
-  if (weeks >= 2) {
-    return weeks + " weeks ago";
+  switch(true){
+    case seconds > 1209600:
+      return `${Math.floor(seconds / 604800)} weeks ago`
+    case seconds > 172800:
+      return `${Math.floor(seconds / 86400)} days ago`
+    case seconds > 7200:
+      return `${Math.floor(seconds / 3600)} hours ago`
+    case seconds > 120:
+      return `${Math.floor(seconds / 120)} minutes ago`
+    default:
+      return "just now"
   }
-  let days = Math.floor(seconds / 86400);
-  if (days >= 2) {
-    return days + " days ago";
-  }
-  let hours = Math.floor(seconds / 3600);
-  if (hours >= 2) {
-    return hours + " hours ago";
-  }
-  let minutes = Math.floor(seconds / 60);
-  if (minutes >= 2) {
-    return minutes + " minutes ago";
-  }
-  return "Just now";
 }
 
-pullfunction = function() {
-  var client = new HttpClient();
-  client.get("/api/graph?" + window.location.search.substring(1), function(
-    response
-  ) {
-    render(JSON.parse(response));
-  });
+function pullfunction() {
+  d3.json("/api/graph?" + window.location.search.substring(1)).then(render)
 };
 
 function render(graph) {
