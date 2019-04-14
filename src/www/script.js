@@ -107,7 +107,7 @@ function generateX(width, min, max) {
 
 function drawlanes(svg, branches, width, diff, y) {
   let ydiff = diff - 6;
-  let lanes = svg.selectAll(".branchlane").data(branches, b => b.name);
+  let lanes = svg.selectAll(".branchlane").data(branches, b => b.name+b.lastcommit);
   lanes.exit().remove();
 
   let t = b => `translate(0, ${y(b.name) - diff / 2})`;
